@@ -18,7 +18,7 @@ updates.
 |---|---|
 | **Battery gauge in EmulationStation** | Stock ES shows no battery on a PiBoy. The gauge is published as a standard battery, and it is a real fuel gauge: current integration plus a measured discharge curve and pack resistance model. The percentage no longer bounces up and down while draining (rms error 1.5 points vs 6.5 for a plain voltage map). |
 | **In-game OSD** | A thin Wayland overlay drawn over any emulator: battery, temperature + CPU load, Wi-Fi (with a real connectivity check), Bluetooth (on / device connected), clock, a volume bar when you turn the wheel, and short system messages (low battery, game saved). Each element can be shown in menus only, in game only, everywhere, or never. It never steals your buttons. |
-| **System Settings menu** | A new "System Settings" entry in ES, driven with the D-pad: OSD elements and position, LED mode/colour, fan profile, CPU governor, Wi-Fi and Bluetooth radios, system info page. English or French. |
+| **System Settings menu** | A new "System Settings" entry in ES, driven with the D-pad: OSD elements and position, LED mode/colour, fan profile, CPU governor, save before shutdown, low battery warning level, screen off in standby, Wi-Fi and Bluetooth radios, language (English/French), system info page (battery, temperature, IP, MCU firmware). |
 | **Fan control** | PWM fan curve with profiles (silent, quiet, balanced, cool, custom). Full speed above 80 °C whatever the profile. |
 | **Power LED** | Fixed colour of your choice, or battery mode: green > 50 %, amber 15-50 %, red < 15 %, gently pulsing while charging. |
 | **Clean power handling** | Power slider and low battery trigger a clean shutdown; shutting down from the ES menu really cuts the power (otherwise the MCU keeps draining the battery while the console looks off). Reboots open the MCU's 60-second reboot window, so a slow boot (e.g. right after a Batocera update) is never powered off halfway. |
@@ -83,7 +83,7 @@ editable from the System Settings menu too:
 | `piboy-osd.conf` | OSD elements, position, sizes, menu language |
 | `piboy-fan.conf` | fan profile or custom curve |
 | `piboy-led.conf` | LED mode and colour |
-| `piboy-power.conf` | CPU governor |
+| `piboy-power.conf` | CPU governor, save before shutdown, low battery warning, screen off in standby |
 | `piboy-netplay.conf` | fallback host settings for "Netplay - Host" |
 
 Logs: `/userdata/system/piboy-dmgcontrol.log`, `piboy-osd/osd.log`,
@@ -104,7 +104,7 @@ Logs: `/userdata/system/piboy-dmgcontrol.log`, `piboy-osd/osd.log`,
   up otherwise.
 - **MCU firmware**: the installer shows the PiBoy's firmware version. 1.0.6 is the
   last release for the DMG and fixes reboot/shutdown issues; if yours is older,
-  Experimental Pi's updater is preserved at https://archive.org/details/EXPPI.
+  the firmware and Experimental Pi's updater are in [firmware/](firmware/).
 - **RetroArch network commands** are enabled (`global.retroarch.network_cmd_enable`,
   UDP port 55355) for the save-before-shutdown feature. They are reachable from
   your local network; set the key back to `false` in `batocera.conf` if you prefer.

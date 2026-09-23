@@ -9,6 +9,8 @@
 | stb_image, stb_truetype, Sean Barrett | `src/osd/gen/` | public domain / MIT |
 | wlr-layer-shell protocol, wlroots | `src/osd/gen/` | MIT |
 | xdg-shell protocol, Wayland | `src/osd/gen/` | MIT |
+| PiBoy DMG MCU firmware, Experimental Pi | `firmware/*.bin` | no licence published; mirrored for preservation, see firmware/README.md |
+| `loader.py`, Copyright 2019 Jim Danner | `firmware/loader.py` | MIT |
 
 The `xpi_gamecon` kernel driver is not included: it ships with Batocera.
 Dirtywave and M8 are trademarks of Dirtywave. StarCraft is a trademark of

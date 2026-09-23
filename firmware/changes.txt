@@ -1,0 +1,43 @@
+1.0.7 Added support for new models
+
+1.0.6 Requires updated firwmare included in this release.
+	Fixed some reboot/shutdown issues.
+	Adjusted joystick calibration.
+	Added LCD sleep/wake scripts for Emulation Station Screensaver.
+	Backlight turns on immediately on powerup.
+	Power up and Power down LED are no red(phasing on for turning on and phasing off for turning off.
+
+1.0.5 Requires updated firwmare included in this release.
+	Adjustments to backlight control to support alternate backlight drivers(re silicon shortage).
+	
+1.0.4 Requires updated firwmare included in this release.
+	Added median filter to controls.
+	Added deadband to volume icon display in OSD
+	Added arguments for individual OSD icons and status information(alpha(0 to 100, 0 disables,x(0 to 639),y(0 to 479) and size(small medium and large)).
+	Added "classicaudio" to osd.cfg. This enabled old PCM(1 device, 2 index) audio devices.  We now default to the new Headphones/HDMI 2 audio device system
+	We are now Retropie 4.7.1 compatible
+	Fan profile defaults to the higher setting. If your fan appears to remain at full blast all the time switch to the second fan profile in osd.cfg(or customize it)
+	Added splash screens during installation
+	Fixed loadwait option in OSD(now waits appropriately.
+	SD card files are stored in SDInstall. See readme.txt inside SDInstall for instructions on manually installing the SD card files.
+	For Windows users, the ExperimentalPiUtility can be used for all necessary steps.  Installing the Windows USB driver, Copying files to the SD card and editing the cmdline.txt automatically and updating the Piboy firmware over USB.
+	For non-Windows users or masochistic Windows users, there is a very simple python based firmware update utility(loader.py).  Requires pyserial be installed and the only argument is the device port(eg: /dev/ttyACM0 for Linux/RPi or COM4 for Windows)
+	
+1.0.3 Requires updated firwmare included in this release.
+	Changed fan profile from using speed(0 to 100%) to power(0(0%) to 254(25.4%) and 255(100%))
+	Added Firmware Versions to bootscreen
+	Fixed Splash screen volume. Volume is now controlled by volume wheel.
+	Added splash screen volume offset to osd.cfg
+	osd.cfg is now located in /boot partition for easy editing.
+	changes to osd.cfg are now live(take effect immediately after saving).
+
+1.0.2 Update Safe Shutdown and OSD software before updating to this firmware.
+	Added options to set Red and Green power LED max levels independently, /sys/kernel/xpi_gamecon/red and green sysfiles.
+	Split LCD on/off control in to separate sysfile, flags. Bit 0 turns LCD on/off.  Bit 7 sets 60 second reboot window where Piboy will not shutoff Pi allowing a proper reboot.
+	Renamed "fan_duty" sysfile to "fan".  
+	  
+
+1.0.1 Increased filtering and deadband on Volume wheel analog input.
+
+1.0.0 First release
+	  

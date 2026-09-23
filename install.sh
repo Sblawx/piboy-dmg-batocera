@@ -61,8 +61,8 @@ if [ -d "$XPI" ]; then
 	if [ -n "$FW" ] && [ "$FW" -lt 262 ] 2>/dev/null; then
 		echo "  WARNING: firmware older than 1.0.6, the last release for the DMG."
 		echo "  1.0.6 fixes reboot/shutdown issues and the joystick calibration."
-		echo "  Experimental Pi's updater (Windows tool, or loader.py over USB) is"
-		echo "  preserved at https://archive.org/details/EXPPI"
+		echo "  The firmware and Experimental Pi's updater are in the firmware/ folder"
+		echo "  of this repository (see firmware/README.md)."
 	fi
 else
 	echo "  WARNING: /sys/kernel/xpi_gamecon is missing. The PiBoy driver ships in"
@@ -110,6 +110,12 @@ for f in piboy-fan.conf piboy-led.conf piboy-power.conf piboy-osd.conf; do
 		echo "  $f (kept)"
 	fi
 done
+# Options added by newer versions: appended with their default value.
+if [ -f "$SYS/piboy-power.conf" ]; then
+	for kv in "save_on_shutdown = 1" "low_battery_warning = 10" "screen_off_standby = 1"; do
+		grep -q "^[[:space:]]*${kv%% *}[[:space:]]*=" "$SYS/piboy-power.conf" || echo "$kv" >>"$SYS/piboy-power.conf"
+	done
+fi
 if [ -f "$SYS/piboy-osd.conf" ]; then
 	grep -q '^[[:space:]]*bluetooth_mode' "$SYS/piboy-osd.conf" || echo "bluetooth_mode = es" >>"$SYS/piboy-osd.conf"
 	grep -q '^[[:space:]]*language' "$SYS/piboy-osd.conf" || echo "language = en" >>"$SYS/piboy-osd.conf"

@@ -38,7 +38,9 @@ FAN_UPDATE_S = 2.0        # how often to re-evaluate the fan curve
 SWITCH_DEBOUNCE_S = 1.5   # power switch must be held this long
 LOW_BATT_PCT = 5          # clean shutdown below this charge
 LOW_BATT_MV = 3150        # terminal-voltage floor, protects the cell
-LOW_BATT_WARN_PCT = (10, 7)  # on-screen warnings while discharging
+POWER_CONF = "/userdata/system/piboy-power.conf"
+# low_battery_warning in piboy-power.conf -> warning levels while discharging
+LOW_BATT_WARN_LEVELS = {"10": (10, 7), "15": (15, 10), "20": (20, 10), "0": ()}
 RA_CMD_ADDR = ("127.0.0.1", 55355)   # RetroArch network commands (network_cmd_enable)
 OSD_MSG = "/tmp/piboy-osd.msg"       # message channel read by piboy-osd
 OSD_CONF = "/userdata/system/piboy-osd.conf"
@@ -951,6 +953,45 @@ def osd_enabled():
     return True
 
 
+def load_power_config():
+    """User options from piboy-power.conf (also set from the System Settings
+    menu): save_on_shutdown (1/0) and low_battery_warning (10/15/20/0)."""
+    cfg = {"save_on_shutdown": "1", "low_battery_warning": "10"}
+    try:
+        with open(POWER_CONF) as f:
+            for line in f:
+                m = re.match(r"\s*(save_on_shutdown|low_battery_warning)\s*=\s*(\S+)", line)
+                if m:
+                    cfg[m.group(1)] = m.group(2)
+    except OSError:
+        pass
+    return (cfg["save_on_shutdown"] != "0",
+            LOW_BATT_WARN_LEVELS.get(cfg["low_battery_warning"], (10, 7)))
+
+
+def french():
+    try:
+        with open(OSD_CONF) as f:
+            return any(re.match(r"\s*language\s*=\s*fr(\s|$)", line) for line in f)
+    except OSError:
+        return False
+
+
+# Short on purpose: shown in the middle of the OSD bar. No accents: the OSD
+# font renders plain ASCII.
+MESSAGES = {
+    "low": ("Battery low: %d%%", "Batterie faible : %d%%"),
+    "empty": ("Battery empty: saving", "Batterie vide : sauvegarde"),
+    "shutdown": ("Shutting down...", "Extinction..."),
+    "saved": ("Game saved", "Partie sauvegardee"),
+}
+
+
+def msg(key, *args):
+    text = MESSAGES[key][1 if french() else 0]
+    return text % args if args else text
+
+
 def notify(text, seconds=6, warn=False):
     """On-screen message: through the OSD bar when it runs, else through
     RetroArch (in game) or EmulationStation (in the menus)."""
@@ -1004,7 +1045,7 @@ def save_running_game():
         time.sleep(0.5)
         if newest_state_mtime() > before:
             log("game state saved")
-            notify("Game saved", 3)
+            notify(msg("saved"), 3)
             time.sleep(1.5)
             return
     log("no save state written (is global.retroarch.network_cmd_enable=true?)")
@@ -1023,9 +1064,13 @@ def shutdown(reason):
     """
     global _running
     log("shutdown: %s" % reason)
-    notify("Battery empty: saving" if reason.startswith("battery")
-           else "Shutting down...", 10, warn=reason.startswith("battery"))
-    save_running_game()
+    save_on_shutdown, _levels = load_power_config()
+    notify(msg("empty") if reason.startswith("battery") else msg("shutdown"),
+           10, warn=reason.startswith("battery"))
+    if save_on_shutdown:
+        save_running_game()
+    else:
+        log("save before shutdown disabled in piboy-power.conf")
     action = "poweroff"
     status = read_int(os.path.join(XPI, "status"))
     switch_on = bool(status is not None and status & 0x40)
@@ -1087,6 +1132,8 @@ def main():
     next_battery_log = 0.0
     next_state_save = 0.0
     warned = set()
+    _save, warn_levels = load_power_config()
+    power_conf_mtime = _mtime(POWER_CONF)
 
     log("started (fan profile=%s idle=%d curve=%s, battery=%s, led=%s %d/%d)"
         % (fan_profile, fan_idle, fan_curve, "yes" if have_battery else "no",
@@ -1113,11 +1160,11 @@ def main():
             percent, charging = publish_battery()
             bat_percent, bat_charging = percent, charging
             if percent is not None:
-                if charging or percent > max(LOW_BATT_WARN_PCT) + 2:
+                if not warn_levels or charging or percent > max(warn_levels) + 2:
                     warned.clear()
-                elif any(percent <= lvl and lvl not in warned for lvl in LOW_BATT_WARN_PCT):
-                    warned.update(lvl for lvl in LOW_BATT_WARN_PCT if percent <= lvl)
-                    notify("Battery low: %d%%" % percent, 8, warn=True)
+                elif any(percent <= lvl and lvl not in warned for lvl in warn_levels):
+                    warned.update(lvl for lvl in warn_levels if percent <= lvl)
+                    notify(msg("low", percent), 8, warn=True)
             if percent is not None and not charging:
                 millivolts = read_int(os.path.join(XPI, "battery"))
                 if percent <= LOW_BATT_PCT:
@@ -1162,6 +1209,11 @@ def main():
                 led_mode, led_red, led_green = load_led_config()
                 log("led reloaded: mode=%s red=%d green=%d"
                     % (led_mode, led_red, led_green))
+            m = _mtime(POWER_CONF)
+            if m != power_conf_mtime:
+                power_conf_mtime = m
+                _save, warn_levels = load_power_config()
+                log("power options reloaded: warn levels %s" % (warn_levels,))
             # Live-reload the profile if the user edited the config file.
             m = _mtime(FAN_CONF_PATH)
             if m != fan_conf_mtime:

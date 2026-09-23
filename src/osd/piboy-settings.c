@@ -144,6 +144,11 @@ static Item items[] = {
   {"  Colour (static)", {"Off","Dim","Red","Green","Amber","White"}, {0,0,0,0,0,0},     6,0,F_LED,K_LEDCOLOR,NULL,  "  Couleur (fixe)",{"Eteinte","Faible","Rouge","Verte","Ambre","Blanche"}},
   {"Fan",               {"Silent","Quiet","Balanced","Cool"},  {"silent","quiet","balanced","cool"},4,0,F_FAN,0,"profile","Ventilateur", {"Silencieux","Doux","Equilibre","Frais"}},
   {"CPU",               {"Eco","Normal","Performance"},        {"powersave","schedutil","performance"},3,0,F_PWR,0,"cpu_governor","CPU",{"Eco","Normal","Performance"}},
+  // Options du service piboy (piboy-power.conf). La 1re valeur = defaut (cle absente).
+  {"Save game on shutdown", {"On","Off"},                    {"1","0"},               2,0,F_PWR,0,"save_on_shutdown",   "Sauvegarde a l'extinction",{"Actif","Off"}},
+  {"Low battery warning", {"10% + 7%","15% + 10%","20% + 10%","Off"}, {"10","15","20","0"},4,0,F_PWR,0,"low_battery_warning","Alerte batterie faible",{"10% + 7%","15% + 10%","20% + 10%","Off"}},
+  {"Screen off in standby", {"On","Off"},                    {"1","0"},               2,0,F_PWR,0,"screen_off_standby", "Ecran eteint en veille",   {"Actif","Off"}},
+  {"Language",          {"English","Francais"},              {"en","fr"},             2,0,F_OSD,0,"language",           "Langue",                   {"English","Francais"}},
   {"WiFi (radio)",      {"Off","On"},                          {0,0},                    2,0,0,K_WIFI,NULL,          "WiFi (radio)",   {"Off","On"}},
   {"Bluetooth (radio)", {"Off","On"},                          {0,0},                    2,0,0,K_BT,NULL,            "Bluetooth (radio)",{"Off","On"}},
   {"System info",       {"Open >"},                            {0},                      1,0,0,K_INFO,NULL,          "Infos systeme",  {"Ouvrir >"}},
@@ -197,6 +202,7 @@ static void commit(Item*it){
     if(it->kind==K_INFO){ return; }
     set_key(conf_path(it->file),it->key,it->val[it->idx]);
     if(it->key && !strcmp(it->key,"cpu_governor")) apply_governor(it->val[it->idx]);
+    if(it->key && !strcmp(it->key,"language")) g_fr = !strcmp(it->val[it->idx],"fr");
 }
 static void change(int dir){
     Item*it=&items[sel]; it->idx=(it->idx+dir+it->n)%it->n; commit(it); dirty=1;
@@ -245,10 +251,15 @@ static void draw_info(uint32_t*px){
     char gov[32]; popen_line("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null",gov,sizeof gov);
     char la[32]; popen_line("cut -d' ' -f1 /proc/loadavg 2>/dev/null",la,sizeof la);
     snprintf(v,sizeof v,TR("gov %s   load %s","gouv %s   charge %s"),gov,la); info_row(px,y,"CPU",v); y+=rh;
-    char ip[80]; popen_line("hostname -I 2>/dev/null",ip,sizeof ip); char*sp=strchr(ip,' '); if(sp)*sp=0;
+    // busybox hostname n'a pas -I : premiere adresse IPv4 globale
+    char ip[80]; popen_line("ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1",ip,sizeof ip); char*sp=strchr(ip,' '); if(sp)*sp=0;
     info_row(px,y,"IP",ip[0]?ip:"-"); y+=rh;
     char up[32]; popen_line("awk '{h=int($1/3600);m=int($1%3600/60);printf \"%dh%02d\",h,m}' /proc/uptime 2>/dev/null",up,sizeof up);
     info_row(px,y,"Uptime",up); y+=rh;
+    // Firmware du microcontroleur : 262 = 0x106 = 1.0.6
+    int fw=read_int_f("/sys/kernel/xpi_gamecon/version");
+    if(fw>0) snprintf(v,sizeof v,"%x.%x.%x",(fw>>8)&0xF,(fw>>4)&0xF,fw&0xF); else snprintf(v,sizeof v,"-");
+    info_row(px,y,TR("MCU firmware","Firmware MCU"),v); y+=rh;
     text(px,TR("B: back","B: retour"),40,H-40,16,160,170,185);
 }
 static void draw(void){

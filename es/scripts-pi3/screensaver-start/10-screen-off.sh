@@ -7,6 +7,8 @@
 # then the POWER (flags=0). Waking does the reverse, like a cold boot.
 # Installed by default on the Pi 3; also worth trying on a Pi 4 whose screen
 # stays black after standby.
+# Option "Screen off in standby" of the System Settings menu (piboy-power.conf).
+grep -Eq '^[[:space:]]*screen_off_standby[[:space:]]*=[[:space:]]*0' /userdata/system/piboy-power.conf 2>/dev/null && exit 0
 export XDG_RUNTIME_DIR=/var/run
 [ -n "$WAYLAND_DISPLAY" ] || WAYLAND_DISPLAY=$(ls /var/run 2>/dev/null | grep -E '^wayland-[0-9]+$' | head -1)
 export WAYLAND_DISPLAY
