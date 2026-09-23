@@ -1,0 +1,48 @@
+#!/bin/sh
+# PiBoy DMG control daemon - Batocera user service.
+#
+# Replaces the deprecated /userdata/system/custom.sh launcher. Enabled via
+# `batocera-services enable piboy` (adds "piboy" to system.services in
+# batocera.conf). S99userservices calls this with start/stop at boot/shutdown.
+#
+# The name MUST stay alphanumeric+underscore (no hyphen): S99userservices
+# rejects service names that don't match ^[_[:alpha:]][_[:alpha:][:digit:]]*$.
+#
+# Note: the early battery publish and the shutdown flags=0 handling live in
+# /boot/boot-custom.sh (S00), not here. This only launches/stops the daemon.
+
+DAEMON=/userdata/system/piboy-dmgcontrol.py
+LOG=/userdata/system/piboy-dmgcontrol.log
+PIDFILE=/var/run/piboy-dmgcontrol.pid
+
+# NOTE: piboy-mouse.py is deliberately NOT started here. It is launched on
+# demand by the app launchers (/userdata/system/wine/starcraft.sh and
+# /userdata/roms/ports/FileManager.sh) with --starcraft / --filemanager, and
+# killed when the app exits. Running it permanently cost 3.8% of a core just
+# walking /proc to guess whether an app was up, and kept the CPU off its lowest
+# operating point; on demand it costs exactly nothing while idle.
+
+case "$1" in
+	start)
+		modprobe xpi_gamecon 2>/dev/null
+		if [ ! -f "$PIDFILE" ] || ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+			# Keep the previous run's log: it holds the shutdown
+			# reason, which is exactly what post-mortems need (the
+			# 2026-07-28 overnight-charge failure was undiagnosable
+			# because plain > truncated it here).
+			[ -f "$LOG" ] && mv -f "$LOG" "$LOG.old" 2>/dev/null
+			python3 "$DAEMON" >"$LOG" 2>&1 &
+			echo $! >"$PIDFILE"
+		fi
+		;;
+	stop)
+		if [ -f "$PIDFILE" ]; then
+			kill "$(cat "$PIDFILE")" 2>/dev/null
+			rm -f "$PIDFILE"
+		fi
+		# Safety net: drop an on-demand mouse daemon left behind by a crash.
+		pkill -f 'piboy-mouse.py' 2>/dev/null
+		;;
+esac
+
+exit 0

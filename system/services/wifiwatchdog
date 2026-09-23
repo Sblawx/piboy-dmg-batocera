@@ -1,0 +1,32 @@
+#!/bin/sh
+# Batocera user service: Wi-Fi watchdog.
+# Runs /userdata/system/wifi-watchdog.sh in the background, tracked by PID.
+#
+# Why: the Pi 4's 5 GHz link can go "zombie" under sustained traffic (still
+# associated, no packet goes through, nothing in any log). The script pings the
+# gateway and cycles Wi-Fi through connman when needed. It also keeps Wi-Fi
+# power-save off, which otherwise drops idle SSH sessions.
+
+SCRIPT=/userdata/system/wifi-watchdog.sh
+PIDFILE=/var/run/wifi-watchdog.pid
+
+case "$1" in
+	start)
+		[ -x "$SCRIPT" ] || exit 0
+		if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+			exit 0
+		fi
+		# Give Wi-Fi time to associate before judging it.
+		setsid sh -c "sleep 60; exec sh $SCRIPT" >/dev/null 2>&1 &
+		echo $! >"$PIDFILE"
+		;;
+	stop)
+		if [ -f "$PIDFILE" ]; then
+			pid=$(cat "$PIDFILE")
+			# the setsid shell AND the script it exec'd (same session)
+			pkill -s "$pid" 2>/dev/null || kill "$pid" 2>/dev/null
+			rm -f "$PIDFILE"
+		fi
+		;;
+esac
+exit 0

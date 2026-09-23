@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<gameList>
+	<game>
+		<path>./System Settings.sh</path>
+		<name>System Settings</name>
+		<desc>PiBoy settings: OSD, LED, fan, CPU, Wi-Fi, Bluetooth, system info.</desc>
+	</game>
+</gameList>

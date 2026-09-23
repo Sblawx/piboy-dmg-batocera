@@ -1,0 +1,9 @@
+  <system>
+    <fullname>System Settings</fullname>
+    <name>reglages</name>
+    <path>/userdata/roms/reglages</path>
+    <extension>.sh .SH</extension>
+    <command>bash "%ROM%"</command>
+    <platform>ignore</platform>
+    <theme>reglages</theme>
+  </system>

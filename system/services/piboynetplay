@@ -1,0 +1,22 @@
+#!/bin/sh
+# Batocera user service: LAN announcement of hosted netplay games.
+# The name must stay alphanumeric (S99userservices rejects dashes).
+
+DAEMON=/userdata/system/piboy-netplay-announce.py
+PIDFILE=/var/run/piboy-netplay-announce.pid
+
+case "$1" in
+	start)
+		if [ ! -f "$PIDFILE" ] || ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+			python3 "$DAEMON" >/dev/null 2>&1 &
+			echo $! >"$PIDFILE"
+		fi
+		;;
+	stop)
+		if [ -f "$PIDFILE" ]; then
+			kill "$(cat "$PIDFILE")" 2>/dev/null
+			rm -f "$PIDFILE"
+		fi
+		;;
+esac
+exit 0

@@ -1,0 +1,4 @@
+src/osd/sysroot/
+src/osd/build/
+__pycache__/
+*.pyc

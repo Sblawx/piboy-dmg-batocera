@@ -1,0 +1,1 @@
+15000000010000000100000000010000,PiBoy DMG Controller,platform:Linux,a:b5,b:b6,x:b8,y:b9,back:b13,start:b14,leftshoulder:b11,rightshoulder:b12,rightstick:b10,guide:b7,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,

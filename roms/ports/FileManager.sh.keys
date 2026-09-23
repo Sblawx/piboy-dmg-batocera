@@ -1,0 +1,12 @@
+{
+    "actions_player1": [
+        {"trigger": "joystick1", "type": "mouse"},
+        {"trigger": "a", "type": "key", "target": "BTN_LEFT"},
+        {"trigger": "b", "type": "key", "target": "BTN_RIGHT"},
+        {"trigger": "up", "type": "key", "target": "KEY_UP"},
+        {"trigger": "down", "type": "key", "target": "KEY_DOWN"},
+        {"trigger": "left", "type": "key", "target": "KEY_LEFT"},
+        {"trigger": "right", "type": "key", "target": "KEY_RIGHT"},
+        {"trigger": ["select", "start"], "type": "key", "target": ["KEY_LEFTALT", "KEY_F4"]}
+    ]
+}

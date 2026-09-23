@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.png binary
+*.otf binary
+m8/bin/m8c binary
+system/piboy-osd/piboy-osd binary
+system/piboy-osd/piboy-settings binary

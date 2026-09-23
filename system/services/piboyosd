@@ -1,0 +1,34 @@
+#!/bin/sh
+# Batocera user service: piboy-osd overlay + CPU governor.
+# The name must stay alphanumeric (S99userservices rejects dashes).
+#
+# The launcher is a supervisor that restarts the overlay if it dies (a Wayland
+# client dies with its compositor). Stopping must therefore kill the supervisor
+# BEFORE the overlay, otherwise it comes straight back.
+LAUNCH=/userdata/system/piboy-osd/piboy-osd.sh
+PIDFILE=/var/run/piboy-osd-supervisor.pid
+
+case "$1" in
+	start)
+		# CPU governor chosen in piboy-power.conf
+		gov=$(grep -E '^[[:space:]]*cpu_governor' /userdata/system/piboy-power.conf 2>/dev/null | sed 's/.*=[[:space:]]*//;s/[[:space:]]*$//')
+		[ -n "$gov" ] && for c in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo "$gov" > "$c" 2>/dev/null; done
+
+		if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+			exit 0
+		fi
+		rm -f /tmp/piboy-osd.pause
+		setsid "$LAUNCH" >/dev/null 2>&1 &
+		echo $! >"$PIDFILE"
+		;;
+	stop)
+		if [ -f "$PIDFILE" ]; then
+			kill "$(cat "$PIDFILE")" 2>/dev/null
+			rm -f "$PIDFILE"
+		fi
+		# Safety net: an orphan supervisor (manual restart, older service...).
+		pkill -f 'piboy-osd\.sh' 2>/dev/null
+		killall piboy-osd 2>/dev/null
+		;;
+esac
+exit 0

@@ -1,0 +1,41 @@
+# ====== PiBoy DMG - Raspberry Pi 4 display/audio block =======================
+# Append this to the END of config.txt on the BATOCERA boot partition BEFORE the
+# first boot (the partition is FAT, editable from Windows/macOS/Linux).
+# Without it the internal 640x480 DPI screen stays black.
+
+[rpi4]
+dtoverlay=vc4-fkms-v3d-pi4
+max_framebuffers=2
+extra_transpose_buffer=2
+disable_overscan=1
+disable_splash=1
+avoid_warnings=2
+boot_delay=0
+initial_turbo=60
+force_eeprom_read=0
+
+# DPI pins: 22 GPIOs in ALT2
+gpio=0-9,12-17,20-25=a2
+
+# PiBoy PWM audio (speaker + headphone jack) on GPIO 18/19
+dtparam=audio=on
+audio_pwm_mode=2
+dtoverlay=audremap,pins_18_19
+
+# 640x480 DPI panel
+hvs_set_dither=0x210
+dpi_group=2
+dpi_mode=87
+dpi_output_format=0x070016
+dpi_timings=640 1 130 130 130 480 1 13 13 13 0 0 0 60 0 32000000 1
+enable_dpi_lcd=1
+
+# Pi board LEDs off (the PiBoy's own bicolour LED is driven by the MCU)
+dtparam=act_led_trigger=none
+dtparam=act_led_activelow=off
+dtparam=pwr_led_trigger=none
+dtparam=pwr_led_activelow=off
+dtparam=eth_led0=4
+dtparam=eth_led1=4
+[all]
+# ====== end of PiBoy DMG block ==============================================
