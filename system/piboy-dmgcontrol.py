@@ -21,9 +21,11 @@ import math
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
+import urllib.request
 
 # ---------------------------------------------------------------- config ----
 POLL_S = 0.2              # main loop period
@@ -36,6 +38,12 @@ FAN_UPDATE_S = 2.0        # how often to re-evaluate the fan curve
 SWITCH_DEBOUNCE_S = 1.5   # power switch must be held this long
 LOW_BATT_PCT = 5          # clean shutdown below this charge
 LOW_BATT_MV = 3150        # terminal-voltage floor, protects the cell
+LOW_BATT_WARN_PCT = (10, 7)  # on-screen warnings while discharging
+RA_CMD_ADDR = ("127.0.0.1", 55355)   # RetroArch network commands (network_cmd_enable)
+OSD_MSG = "/tmp/piboy-osd.msg"       # message channel read by piboy-osd
+OSD_CONF = "/userdata/system/piboy-osd.conf"
+SAVES_DIR = "/userdata/saves"
+SAVE_WAIT_S = 8.0                    # how long to wait for RetroArch's save state
 
 # --------------------------------------------------------------- battery ----
 # The MCU has no coulomb counter: its `percent` is a straight linear map of the
@@ -906,6 +914,102 @@ def charge_hold():
     return "exit"
 
 
+# ------------------------------------------------------- user messages ----
+def retroarch_running():
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            with open("/proc/%s/comm" % pid) as f:
+                if f.read().strip() == "retroarch":
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def ra_command(command):
+    """Sends a network command to RetroArch (needs network_cmd_enable=true)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.sendto(command.encode("utf-8"), RA_CMD_ADDR)
+        s.close()
+        return True
+    except OSError:
+        return False
+
+
+def osd_enabled():
+    try:
+        with open(OSD_CONF) as f:
+            for line in f:
+                m = re.match(r"\s*enabled\s*=\s*(\d)", line)
+                if m:
+                    return m.group(1) != "0"
+    except OSError:
+        return False
+    return True
+
+
+def notify(text, seconds=6, warn=False):
+    """On-screen message: through the OSD bar when it runs, else through
+    RetroArch (in game) or EmulationStation (in the menus)."""
+    log("message: %s" % text)
+    if osd_enabled():
+        try:
+            tmp = OSD_MSG + ".tmp"
+            with open(tmp, "w") as f:
+                f.write("%d\n%s\n%s\n" % (int(time.time() + seconds),
+                                           "warn" if warn else "info", text))
+            os.replace(tmp, OSD_MSG)
+            return
+        except OSError:
+            pass
+    if retroarch_running():
+        ra_command("SHOW_MSG " + text)
+        return
+    try:
+        urllib.request.urlopen(urllib.request.Request(
+            "http://127.0.0.1:1234/notify", data=text.encode("utf-8"),
+            method="POST"), timeout=2).read()
+    except Exception:
+        pass
+
+
+def newest_state_mtime():
+    newest = 0.0
+    for root, _dirs, files in os.walk(SAVES_DIR):
+        for name in files:
+            if ".state" in name and not name.endswith(".png"):
+                try:
+                    newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+                except OSError:
+                    pass
+    return newest
+
+
+def save_running_game():
+    """Asks RetroArch for a save state before the game gets killed.
+
+    Batocera numbers save states automatically (savestate_auto_index), so this
+    adds a new state instead of overwriting one; EmulationStation offers it
+    the next time the game is launched."""
+    if not retroarch_running():
+        return
+    before = newest_state_mtime()
+    if not ra_command("SAVE_STATE"):
+        return
+    deadline = time.monotonic() + SAVE_WAIT_S
+    while time.monotonic() < deadline:
+        time.sleep(0.5)
+        if newest_state_mtime() > before:
+            log("game state saved")
+            notify("Game saved", 3)
+            time.sleep(1.5)
+            return
+    log("no save state written (is global.retroarch.network_cmd_enable=true?)")
+
+
 def shutdown(reason):
     """Stop ES first so game saves flush, then let the MCU cut power.
 
@@ -919,6 +1023,9 @@ def shutdown(reason):
     """
     global _running
     log("shutdown: %s" % reason)
+    notify("Battery empty: saving" if reason.startswith("battery")
+           else "Shutting down...", 10, warn=reason.startswith("battery"))
+    save_running_game()
     action = "poweroff"
     status = read_int(os.path.join(XPI, "status"))
     switch_on = bool(status is not None and status & 0x40)
@@ -979,6 +1086,7 @@ def main():
     next_fan_update = 0.0
     next_battery_log = 0.0
     next_state_save = 0.0
+    warned = set()
 
     log("started (fan profile=%s idle=%d curve=%s, battery=%s, led=%s %d/%d)"
         % (fan_profile, fan_idle, fan_curve, "yes" if have_battery else "no",
@@ -1004,6 +1112,12 @@ def main():
             next_battery_publish = now + BATT_PUBLISH_S
             percent, charging = publish_battery()
             bat_percent, bat_charging = percent, charging
+            if percent is not None:
+                if charging or percent > max(LOW_BATT_WARN_PCT) + 2:
+                    warned.clear()
+                elif any(percent <= lvl and lvl not in warned for lvl in LOW_BATT_WARN_PCT):
+                    warned.update(lvl for lvl in LOW_BATT_WARN_PCT if percent <= lvl)
+                    notify("Battery low: %d%%" % percent, 8, warn=True)
             if percent is not None and not charging:
                 millivolts = read_int(os.path.join(XPI, "battery"))
                 if percent <= LOW_BATT_PCT:

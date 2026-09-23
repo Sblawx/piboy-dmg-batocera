@@ -54,7 +54,16 @@ for f in "$HERE"/system/services/*; do sed -i 's/\r$//' "$f"; done
 echo "[1/8] checks"
 modprobe xpi_gamecon 2>/dev/null
 if [ -d "$XPI" ]; then
-	echo "  xpi_gamecon driver loaded (MCU firmware $(cat $XPI/version 2>/dev/null))"
+	# The MCU reports its firmware as 0xMmp (262 = 0x106 = 1.0.6).
+	FW=$(cat "$XPI/version" 2>/dev/null)
+	FWTXT=$(printf '%x' "${FW:-0}" 2>/dev/null | sed 's/^\(.\)\(.\)\(.\)$/\1.\2.\3/')
+	echo "  xpi_gamecon driver loaded, PiBoy MCU firmware $FWTXT"
+	if [ -n "$FW" ] && [ "$FW" -lt 262 ] 2>/dev/null; then
+		echo "  WARNING: firmware older than 1.0.6, the last release for the DMG."
+		echo "  1.0.6 fixes reboot/shutdown issues and the joystick calibration."
+		echo "  Experimental Pi's updater (Windows tool, or loader.py over USB) is"
+		echo "  preserved at https://archive.org/details/EXPPI"
+	fi
 else
 	echo "  WARNING: /sys/kernel/xpi_gamecon is missing. The PiBoy driver ships in"
 	echo "  the official Pi 3/Pi 4 images; check: modinfo xpi_gamecon; dmesg | grep -i gamecon"
@@ -214,6 +223,13 @@ elif [ "$WITH_WINE" = 1 ]; then
 	echo "      (box64/Wine not found: StarCraft launcher skipped, see wine/README.md)"
 fi
 chmod +x /userdata/roms/ports/*.sh 2>/dev/null
+
+# RetroArch network commands (local UDP port 55355): used to save the running
+# game before a power-switch or empty-battery shutdown, and for messages.
+if [ -z "$(batocera-settings-get global.retroarch.network_cmd_enable 2>/dev/null)" ]; then
+	batocera-settings-set global.retroarch.network_cmd_enable true 2>/dev/null
+	echo "      RetroArch network commands enabled (save before shutdown)"
+fi
 
 # ---------------------------------------------------------------- services --
 echo "[7/8] enabling services"

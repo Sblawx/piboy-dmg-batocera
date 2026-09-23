@@ -39,6 +39,7 @@
 
 #define RES_DIR_DEFAULT "/userdata/system/piboy-osd/resources"
 #define CONF_PATH       "/userdata/system/piboy-osd.conf"
+#define MSG_PATH        "/tmp/piboy-osd.msg"   // messages du service piboy (batterie faible...)
 
 // modes d'affichage
 enum { MODE_OFF = 0, MODE_ES = 1, MODE_GAME = 2, MODE_BOTH = 3 };
@@ -457,6 +458,30 @@ static void render(State *s){
         }
     }
 
+    // ---- CENTRE : message du service (prioritaire), sinon volume, sinon horloge ----
+    // Fichier ecrit par piboy-dmgcontrol.py : ligne 1 = expiration (epoch),
+    // ligne 2 = info|warn, ligne 3 = texte (court, ~22 caracteres).
+    {
+        static char msg[64]; static int msg_warn=0; static long msg_until=0; static time_t msg_mtime=0; static ino_t msg_ino=0;
+        struct stat ms;
+        // le service remplace le fichier (os.replace) : inode neuf a chaque message
+        if(stat(MSG_PATH,&ms)==0 && (ms.st_mtime!=msg_mtime || ms.st_ino!=msg_ino)){
+            msg_mtime=ms.st_mtime; msg_ino=ms.st_ino; msg_until=0;
+            FILE*f=fopen(MSG_PATH,"r");
+            if(f){ char l1[32]="",l2[16]="";
+                if(fgets(l1,sizeof l1,f) && fgets(l2,sizeof l2,f) && fgets(msg,sizeof msg,f)){
+                    char*nl=strchr(msg,'\n'); if(nl)*nl=0;
+                    msg_until=atol(l1); msg_warn=!strncmp(l2,"warn",4); }
+                fclose(f); }
+        }
+        if(msg_until && time(NULL)<msg_until && msg[0]){
+            n=str_cp(msg,cp,40);
+            int tw=g_charw*n, cw=widget_w(NULL,tw), x=(W-cw)/2+8;
+            if(msg_warn) widget(b->px,W,H,x,NULL,cp,n,tw,255,110,80);
+            else         widget(b->px,W,H,x,NULL,cp,n,tw,255,255,255);
+            goto center_done;
+        }
+    }
     // ---- CENTRE : volume (transitoire) sinon horloge ----
     int vol_active = visible(m_volume,ig) && now_s()<volume_until && s->volume>=0;
     if(vol_active){
@@ -474,6 +499,7 @@ static void render(State *s){
         int tw=g_charw*5, cw=widget_w(NULL,tw), x=(W-cw)/2+8;
         widget(b->px,W,H,x,NULL,cp,n,tw,255,255,255);
     }
+center_done:
 
     wl_surface_attach(surface,b->wlb,0,0); wl_surface_damage_buffer(surface,0,0,W,H); wl_surface_commit(surface); b->busy=1;
 }

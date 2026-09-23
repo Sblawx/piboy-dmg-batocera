@@ -17,11 +17,13 @@ updates.
 | | |
 |---|---|
 | **Battery gauge in EmulationStation** | Stock ES shows no battery on a PiBoy. The gauge is published as a standard battery, and it is a real fuel gauge: current integration plus a measured discharge curve and pack resistance model. The percentage no longer bounces up and down while draining (rms error 1.5 points vs 6.5 for a plain voltage map). |
-| **In-game OSD** | A thin Wayland overlay drawn over any emulator: battery, temperature + CPU load, Wi-Fi (with a real connectivity check), Bluetooth (on / device connected), clock, and a volume bar when you turn the wheel. Each element can be shown in menus only, in game only, everywhere, or never. It never steals your buttons. |
+| **In-game OSD** | A thin Wayland overlay drawn over any emulator: battery, temperature + CPU load, Wi-Fi (with a real connectivity check), Bluetooth (on / device connected), clock, a volume bar when you turn the wheel, and short system messages (low battery, game saved). Each element can be shown in menus only, in game only, everywhere, or never. It never steals your buttons. |
 | **System Settings menu** | A new "System Settings" entry in ES, driven with the D-pad: OSD elements and position, LED mode/colour, fan profile, CPU governor, Wi-Fi and Bluetooth radios, system info page. English or French. |
 | **Fan control** | PWM fan curve with profiles (silent, quiet, balanced, cool, custom). Full speed above 80 °C whatever the profile. |
 | **Power LED** | Fixed colour of your choice, or battery mode: green > 50 %, amber 15-50 %, red < 15 %, gently pulsing while charging. |
-| **Clean power handling** | Power slider and low battery trigger a clean shutdown; shutting down from the ES menu really cuts the power (otherwise the MCU keeps draining the battery while the console looks off). |
+| **Clean power handling** | Power slider and low battery trigger a clean shutdown; shutting down from the ES menu really cuts the power (otherwise the MCU keeps draining the battery while the console looks off). Reboots open the MCU's 60-second reboot window, so a slow boot (e.g. right after a Batocera update) is never powered off halfway. |
+| **Game saved before shutdown** | When the power slider goes off or the battery runs out during a RetroArch game, a save state is written first (a new slot, never overwriting yours): pick it up next time from the game's save states in ES. |
+| **Low battery warnings** | On-screen warning at 10 % and 7 %, then "Battery empty: saving" before the automatic shutdown at 5 %. |
 | **Real screen-off standby** | The ES screensaver switches the display and backlight off through the MCU: about 450 mA saved, instant wake on any button. |
 | **Volume wheel** | The wheel drives the system volume and always targets the internal speaker/jack. |
 | **Stick as a mouse** | For the file manager and PC games (see StarCraft below), started only while those run, so it costs nothing otherwise. |
@@ -99,6 +101,12 @@ Logs: `/userdata/system/piboy-dmgcontrol.log`, `piboy-osd/osd.log`,
 - **Pi 3**: fine for 8/16-bit systems and light arcade. Standby uses a slightly
   different script (signal off before power) because some panels do not wake
   up otherwise.
+- **MCU firmware**: the installer shows the PiBoy's firmware version. 1.0.6 is the
+  last release for the DMG and fixes reboot/shutdown issues; if yours is older,
+  Experimental Pi's updater is preserved at https://archive.org/details/EXPPI.
+- **RetroArch network commands** are enabled (`global.retroarch.network_cmd_enable`,
+  UDP port 55355) for the save-before-shutdown feature. They are reachable from
+  your local network; set the key back to `false` in `batocera.conf` if you prefer.
 - **Tested** on Batocera 43.1 with a Pi 4B 8 GB and a Pi 3B. Some code comments
   are still in French; user-facing text is in English.
 

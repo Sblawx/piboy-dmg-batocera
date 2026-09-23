@@ -125,6 +125,14 @@ case "$1" in
 		if [ -d "$XPI" ] && [ -e /tmp/shutdown.please ]; then
 			sync
 			echo 0 >"$XPI/flags" 2>/dev/null
+		elif [ -d "$XPI" ]; then
+			# Reboot (or a bare shell reboot/poweroff): 129 = display on +
+			# bit 7, which opens a 60-second window where the MCU will not
+			# cut the Pi while its heartbeat is missing. Experimental Pi's own
+			# image does exactly this on reboot (firmware 1.0.2+); without it
+			# a slow boot, e.g. right after a Batocera update, can be powered
+			# off halfway. For a bare poweroff it only delays the power cut.
+			echo 129 >"$XPI/flags" 2>/dev/null
 		fi
 		;;
 esac
