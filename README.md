@@ -40,6 +40,7 @@ updates.
 | ![](docs/screenshots/ingame-battery.png) Default in game: battery only | ![](docs/screenshots/settings-menu.png) System Settings menu |
 | ![](docs/screenshots/es-m8-system-osd.png) M8 Tracker as an ES system | ![](docs/screenshots/starcraft-menu.png) StarCraft through box64 + Wine |
 | ![](docs/screenshots/netplay-host.png) Hosting a netplay game | ![](docs/screenshots/netplay-join-notification.png) On-screen message when no game is found |
+| ![](docs/screenshots/ingame-low-battery.png) Low battery warning | |
 
 ## Installation
 
