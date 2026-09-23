@@ -56,7 +56,7 @@ console unusable. Do it on a charged battery and at your own risk.
 ```
 69f953f8e965676de04ed0e749cc24812bc7b520f8d987192720b8ab20b7d0c6  PIBOYDMG32K.106.bin
 55d00adc5729436cf13b239f0a8011b1305947e142f3ad7e355f2d652c197f21  PIBOYDMGx32K.bin
-98f2107a122ddea78d56f6cde521e87e611b9767d00bfe8431210fc6eba93e19  loader.py
+2b2f516cc2c86e8a165bc05d1d55d1a36d3c1b541db73c4e9d0ea70d64b9e176  loader.py   (Unix line endings)
 ```
 
 ## Rights
