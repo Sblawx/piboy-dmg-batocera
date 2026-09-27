@@ -49,28 +49,30 @@ You need a PiBoy DMG with a Raspberry Pi 4B or 3B/3B+, and a fresh
 for the Pi 4, `bcm2837` for the Pi 3).
 
 1. **Flash** Batocera on the SD card.
-2. **Before the first boot**, prepare the `BATOCERA` partition (it is FAT,
-   readable everywhere) with the script from this repository's `boot/`
-   folder. It detects your Pi from the image. On Windows, with the card in
-   drive `E:`:
+2. **Before the first boot**, edit `config.txt`. Leave the card in your
+   computer after flashing: the `BATOCERA` partition is FAT, so Windows, macOS
+   and Linux can all open it. Open `config.txt` at its root with a plain text
+   editor (Notepad, TextEdit in plain text mode, nano...).
 
-   ```
-   powershell -ExecutionPolicy Bypass -File boot\prepare-sd.ps1 -Drive E:
-   ```
+   1. **Disable the stock display driver.** Near the end of the file, find
+      these two lines:
 
-   On macOS or Linux: `sh boot/prepare-sd.sh /Volumes/BATOCERA` (or
-   `/media/$USER/BATOCERA`).
+      ```
+      # Enable DRM VC4 V3D driver
+      dtoverlay=vc4-kms-v3d
+      ```
 
-   It does two things to `config.txt`, which you can also do by hand:
-   - **comment out** the stock `dtoverlay=vc4-kms-v3d` line (put a `#` in front).
-     This full KMS driver takes over right after the splash and cannot drive
-     the PiBoy screen: you get the Batocera splash, then a black screen with
-     the menu music playing behind it;
-   - **append** [boot/config-piboy-pi4.txt](boot/config-piboy-pi4.txt) (Pi 4)
-     or [boot/config-piboy-pi3.txt](boot/config-piboy-pi3.txt) (Pi 3) to the
-     end of the file. Without this block the internal screen stays black.
-
-   The original is kept as `config.txt.orig`.
+      Put a `#` at the start of the second one, so it reads
+      `#dtoverlay=vc4-kms-v3d`. This full KMS driver cannot drive the PiBoy
+      screen. If you leave it on, you get the Batocera splash, then a black
+      screen with the menu music playing behind it.
+   2. **Add the PiBoy block.** Open
+      [boot/config-piboy-pi4.txt](boot/config-piboy-pi4.txt) for a Pi 4, or
+      [boot/config-piboy-pi3.txt](boot/config-piboy-pi3.txt) for a Pi 3. On
+      GitHub, click **Raw** and copy the whole page. Paste it at the very end
+      of `config.txt`, after the last `[all]` line. Without this block the
+      internal screen stays black from the start.
+   3. **Save**, then eject the card cleanly before putting it in the console.
 3. **Boot** the console, connect it to Wi-Fi (Main menu, Network settings).
 4. **Copy** this repository to the console's network share, for example
    `\\BATOCERA\share\piboy` from Windows (`smb://batocera/share` on macOS),
@@ -83,9 +85,9 @@ for the Pi 4, `bcm2837` for the Pi 3).
    ```
 
 The installer is idempotent: run it again after updating the repository, your
-settings are kept. Options: `--no-m8`, `--no-netplay`, `--no-wine`. It also
-checks `config.txt` and fixes it if step 2 was missed or done by hand without
-disabling `vc4-kms-v3d`.
+settings are kept. Options: `--no-m8`, `--no-netplay`, `--no-wine`. If step
+2.1 was missed, it also disables `dtoverlay=vc4-kms-v3d` itself: the screen
+comes back after the reboot.
 
 Until the installer has run, the volume wheel does nothing and the power
 switch takes a long time to cut the power: both are handled by the `piboy`

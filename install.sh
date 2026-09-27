@@ -84,9 +84,9 @@ mount -o remount,rw /boot 2>/dev/null
 # A config.txt that already drives the panel is left alone.
 FIXED_CFG=0
 if ! grep -q '^[[:space:]]*dpi_timings' /boot/config.txt 2>/dev/null; then
-	echo "  config.txt: no PiBoy display block, adding it"
-	sh "$HERE/boot/prepare-sd.sh" --live && FIXED_CFG=1
-	mount -o remount,rw /boot 2>/dev/null
+	echo "  WARNING: no PiBoy display block in /boot/config.txt, the internal screen"
+	echo "  will stay black. Paste boot/config-piboy-pi4.txt (or -pi3.txt) at the end"
+	echo "  of config.txt, see step 2 of the README."
 elif grep -q '^[[:space:]]*dtoverlay=vc4-kms-v3d' /boot/config.txt; then
 	[ -f /boot/config.txt.orig ] || cp /boot/config.txt /boot/config.txt.orig
 	sed -i 's/^\([[:space:]]*\)\(dtoverlay=vc4-kms-v3d.*\)$/\1#\2   # disabled for the PiBoy DPI screen/' /boot/config.txt &&
