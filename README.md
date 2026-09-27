@@ -49,13 +49,28 @@ You need a PiBoy DMG with a Raspberry Pi 4B or 3B/3B+, and a fresh
 for the Pi 4, `bcm2837` for the Pi 3).
 
 1. **Flash** Batocera on the SD card.
-2. **Before the first boot**, open the `BATOCERA` partition on your computer
-   (it is FAT, readable everywhere) and append to the end of `config.txt`:
-   - [boot/config-piboy-pi4.txt](boot/config-piboy-pi4.txt) for a Pi 4,
-   - [boot/config-piboy-pi3.txt](boot/config-piboy-pi3.txt) for a Pi 3 (and
-     comment out its `dtoverlay=vc4-kms-v3d` line).
+2. **Before the first boot**, prepare the `BATOCERA` partition (it is FAT,
+   readable everywhere) with the script from this repository's `boot/`
+   folder. It detects your Pi from the image. On Windows, with the card in
+   drive `E:`:
 
-   Without this block the internal screen stays black.
+   ```
+   powershell -ExecutionPolicy Bypass -File boot\prepare-sd.ps1 -Drive E:
+   ```
+
+   On macOS or Linux: `sh boot/prepare-sd.sh /Volumes/BATOCERA` (or
+   `/media/$USER/BATOCERA`).
+
+   It does two things to `config.txt`, which you can also do by hand:
+   - **comment out** the stock `dtoverlay=vc4-kms-v3d` line (put a `#` in front).
+     This full KMS driver takes over right after the splash and cannot drive
+     the PiBoy screen: you get the Batocera splash, then a black screen with
+     the menu music playing behind it;
+   - **append** [boot/config-piboy-pi4.txt](boot/config-piboy-pi4.txt) (Pi 4)
+     or [boot/config-piboy-pi3.txt](boot/config-piboy-pi3.txt) (Pi 3) to the
+     end of the file. Without this block the internal screen stays black.
+
+   The original is kept as `config.txt.orig`.
 3. **Boot** the console, connect it to Wi-Fi (Main menu, Network settings).
 4. **Copy** this repository to the console's network share, for example
    `\\BATOCERA\share\piboy` from Windows (`smb://batocera/share` on macOS),
@@ -68,7 +83,13 @@ for the Pi 4, `bcm2837` for the Pi 3).
    ```
 
 The installer is idempotent: run it again after updating the repository, your
-settings are kept. Options: `--no-m8`, `--no-netplay`, `--no-wine`.
+settings are kept. Options: `--no-m8`, `--no-netplay`, `--no-wine`. It also
+checks `config.txt` and fixes it if step 2 was missed or done by hand without
+disabling `vc4-kms-v3d`.
+
+Until the installer has run, the volume wheel does nothing and the power
+switch takes a long time to cut the power: both are handled by the `piboy`
+service it installs. That is expected on a bare Batocera.
 
 After the reboot, set a screensaver delay in ES (Main menu, UI settings,
 Screensaver): when it kicks in, the screen really turns off.

@@ -1,7 +1,9 @@
 # ====== PiBoy DMG - Raspberry Pi 3B/3B+ display/audio block ==================
-# Append this to the END of config.txt on the BATOCERA boot partition BEFORE the
-# first boot. On the official bcm2837 image, also COMMENT OUT the existing
-# "dtoverlay=vc4-kms-v3d" line: full KMS does not drive this DPI panel.
+# Easiest: run prepare-sd.ps1 (Windows) or prepare-sd.sh (macOS/Linux) from this
+# folder, which does both steps below. By hand, BEFORE the first boot:
+#   1. append this to the END of config.txt on the BATOCERA boot partition;
+#   2. COMMENT OUT the existing "dtoverlay=vc4-kms-v3d" line of the stock file:
+#      full KMS does not drive this DPI panel (splash, then black screen).
 
 dtoverlay=vc4-fkms-v3d
 max_framebuffers=2

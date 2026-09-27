@@ -68,12 +68,6 @@ else
 	echo "  WARNING: /sys/kernel/xpi_gamecon is missing. The PiBoy driver ships in"
 	echo "  the official Pi 3/Pi 4 images; check: modinfo xpi_gamecon; dmesg | grep -i gamecon"
 fi
-if grep -q 'dpi_timings' /boot/config.txt 2>/dev/null; then
-	echo "  config.txt: PiBoy display block present"
-else
-	echo "  WARNING: no dpi_timings in /boot/config.txt. If you read this over SSH"
-	echo "  with a black screen, append boot/config-piboy-pi4.txt (or -pi3.txt)."
-fi
 # Batocera's own "PIBOY" power-switch option starts the vendor's old fan/audio/
 # power scripts, which would fight with the piboy service over the fan and the MCU.
 if [ "$(batocera-settings-get system.power.switch 2>/dev/null)" = "PIBOY" ]; then
@@ -82,10 +76,26 @@ if [ "$(batocera-settings-get system.power.switch 2>/dev/null)" = "PIBOY" ]; the
 fi
 
 # ------------------------------------------------------------------- /boot --
-echo "[2/8] early boot hook (/boot/boot-custom.sh)"
-# Publishes the battery before EmulationStation starts (ES looks for it only
-# once) and tells the MCU it may cut power on shutdown.
+echo "[2/8] boot partition (config.txt, early boot hook)"
 mount -o remount,rw /boot 2>/dev/null
+# Display. Stock Batocera loads the full KMS driver (dtoverlay=vc4-kms-v3d):
+# it takes the screen over right after the splash and cannot drive the DPI
+# panel, so the console shows the splash, then stays black while ES runs.
+# A config.txt that already drives the panel is left alone.
+FIXED_CFG=0
+if ! grep -q '^[[:space:]]*dpi_timings' /boot/config.txt 2>/dev/null; then
+	echo "  config.txt: no PiBoy display block, adding it"
+	sh "$HERE/boot/prepare-sd.sh" --live && FIXED_CFG=1
+	mount -o remount,rw /boot 2>/dev/null
+elif grep -q '^[[:space:]]*dtoverlay=vc4-kms-v3d' /boot/config.txt; then
+	[ -f /boot/config.txt.orig ] || cp /boot/config.txt /boot/config.txt.orig
+	sed -i 's/^\([[:space:]]*\)\(dtoverlay=vc4-kms-v3d.*\)$/\1#\2   # disabled for the PiBoy DPI screen/' /boot/config.txt &&
+		FIXED_CFG=1 && echo "  config.txt: dtoverlay=vc4-kms-v3d disabled (it blanks the screen after the splash)"
+else
+	echo "  config.txt: PiBoy display block present"
+fi
+# The hook publishes the battery before EmulationStation starts (ES looks for
+# it only once) and tells the MCU it may cut power on shutdown.
 if [ -f /boot/boot-custom.sh ] && ! grep -q 'xpi_gamecon' /boot/boot-custom.sh; then
 	cp -a /boot/boot-custom.sh /boot/boot-custom.sh.before-piboy
 	echo "  your previous boot-custom.sh was saved as boot-custom.sh.before-piboy"
@@ -245,6 +255,10 @@ done
 [ "$WITH_NET" = 1 ] && batocera-services enable piboynetplay >/dev/null 2>&1 && echo "  piboynetplay"
 
 echo "[8/8] done"
+if [ "$FIXED_CFG" = 1 ]; then
+	echo
+	echo "config.txt was fixed: the internal screen comes back after the reboot."
+fi
 cat <<'END'
 
 Reboot to start everything:
