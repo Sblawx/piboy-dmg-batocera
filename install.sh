@@ -197,8 +197,16 @@ for path in os.environ['BLOCKS'].split():
         continue
     base = base.replace('</systemList>', block + '</systemList>', 1)
     added.append(name)
+# Older versions of these blocks quoted %ROM%. ES already escapes the path
+# (System\ Settings.sh), so the quotes kept the backslash and bash could not
+# find any launcher whose name has a space: fix them in place.
+old = '<command>bash "%ROM%"</command>'
+fixed = base.count(old)
+base = base.replace(old, '<command>bash %ROM%</command>')
 open(dst, 'w', encoding='utf-8').write(base)
 print('  systems added: %s' % (', '.join(added) if added else 'none (already there)'))
+if fixed:
+    print('  launch command fixed in %d existing system(s)' % fixed)
 PY
 
 # ------------------------------------------------------------ extras ---------

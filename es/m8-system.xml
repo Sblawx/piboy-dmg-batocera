@@ -3,7 +3,7 @@
     <name>m8</name>
     <path>/userdata/roms/m8</path>
     <extension>.sh .SH</extension>
-    <command>bash "%ROM%"</command>
+    <command>bash %ROM%</command>
     <platform>ignore</platform>
     <theme>m8</theme>
   </system>
