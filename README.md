@@ -133,6 +133,10 @@ Logs: `/userdata/system/piboy-dmgcontrol.log`, `piboy-osd/osd.log`,
   your local network; set the key back to `false` in `batocera.conf` if you prefer.
 - **Tested** on Batocera 43.1 with a Pi 4B 8 GB and a Pi 3B. Some code comments
   are still in French; user-facing text is in English.
+- **PiBoy XRS**: this layer is for the DMG. Batocera's kernel driver only speaks
+  the DMG's protocol, so an XRS gets no controls. An experimental user-space
+  driver for the XRS, not yet tested on real hardware, is in
+  [xpi-user/](xpi-user/README.md): testers welcome.
 
 ## Building the OSD
 
