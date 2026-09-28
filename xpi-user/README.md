@@ -16,6 +16,10 @@ values in `/run/xpi_gamecon` (same file names as the kernel driver's sysfs).
 
 Raspberry Pi 4 (or 3) only. Tested target: Batocera 43.1 (`bcm2711`).
 
+> **Just want to use your XRS?** Follow the [main README](../README.md#installation):
+> its `install.sh` detects the XRS and sets this driver up by itself, along with the
+> rest of the layer. The steps below are for testing the driver on its own.
+
 ## 1. Prepare a spare SD card, on your PC
 
 1. Flash `batocera-bcm2711-43.1` and open the **BATOCERA** partition (FAT, any OS).
@@ -100,10 +104,11 @@ top -b -n 1 | head -15
 Once step 4 works, the rest of this repository runs on the XRS too: battery gauge in
 EmulationStation, in-game OSD (battery, temperature, Wi-Fi, clock, volume bar),
 System Settings menu, fan and LED profiles, game saved before shutdown, screen-off
-standby. Follow steps 3 to 5 of the [main README](../README.md#installation) (Wi-Fi,
-copy the repository to the console, run `install.sh`): the installer sees the XRS
-driver and sets itself up for it. The driver keeps running; the layer's daemon takes
-over the fan, the volume and the power switch while it runs.
+standby. Follow steps 4 and 5 of the [main README](../README.md#installation) (copy
+the repository to the console, run `install.sh`): the installer sees the XRS driver
+and sets itself up for it (it would also have set the driver up if step 4 here had
+been skipped). The driver keeps running; the layer's daemon takes over the fan, the
+volume and the power switch while it runs.
 
 The controller mapping it adds to EmulationStation (`es/piboy-xrs-input.xml`) is
 computed, not yet checked on an XRS: if a button is wrong, reconfigure the controller
@@ -135,3 +140,6 @@ partition.
 - Refuses to run if the `xpi_gamecon` kernel module is loaded (both would drive the
   same two pins). If it gets no valid frame in 5 s at boot, it disables itself.
 - `--model dmg` drives a PiBoy DMG instead (12-byte frame).
+- `--probe` tries both frame formats for a moment and prints `dmg`, `xrs` or `none`
+  (what `install.sh` uses to tell the consoles apart when the kernel driver gets no
+  answer).

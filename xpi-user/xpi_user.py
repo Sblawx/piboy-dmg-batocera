@@ -14,6 +14,8 @@ Modes
     --daemon      the driver itself (started by /boot/boot-custom.sh)
     --enable      install the boot hook and start the driver at every boot
     --disable     remove the boot hook
+    --probe       tell a DMG from an XRS by the frames the MCU sends; prints
+                  "dmg", "xrs" or "none" (used by the PiBoy layer's install.sh)
 
 What the daemon does
   * polls the MCU 100 times a second. The MCU also takes this as the Pi's
@@ -594,6 +596,26 @@ class Driver:
         return self.values["flags"]
 
 
+def probe(frames=30):
+    """Which frame length gets through the CRC: 12 bytes (DMG) or 14 (XRS).
+    A wrong length never passes the CRC, so it is never answered either. The
+    right one gets the driver's usual first reply (flags=1, display on)."""
+    gpio = Gpio()
+    flags_on = bytes([0xC0, 1])
+    c = crc16(flags_on)
+    reply = flags_on + bytes([c >> 8, c & 0xFF])
+    good = {}
+    for model in ("dmg", "xrs"):
+        n = 0
+        for _ in range(frames):
+            _buf, ok = gpio.transfer(MODELS[model]["length"], reply)
+            n += ok
+            time.sleep(0.01)
+        good[model] = n
+    best = max(good, key=good.get)
+    return best if good[best] >= frames // 3 else "none", good
+
+
 def describe(s):
     pressed = [k[4:] for k, v in s["keys"].items() if v]
     ax = s["axes"]
@@ -683,6 +705,7 @@ def main():
     g.add_argument("--daemon", action="store_true")
     g.add_argument("--enable", action="store_true")
     g.add_argument("--disable", action="store_true")
+    g.add_argument("--probe", action="store_true")
     ap.add_argument("--model", choices=sorted(MODELS), default="xrs")
     ap.add_argument("--hz", type=float, default=100.0)
     ap.add_argument("--no-power", action="store_true",
@@ -699,6 +722,13 @@ def main():
         if args.daemon:
             disable(quiet=True)
         return rc
+    if args.probe:
+        if already_running():
+            raise SystemExit("the driver is running: it already knows the model")
+        model, good = probe()
+        log("probe: %s (valid frames: dmg %d, xrs %d)" % (model, good["dmg"], good["xrs"]))
+        print(model)
+        return 0 if model != "none" else 1
     os.makedirs(RUN, exist_ok=True)
     if already_running():
         raise SystemExit("another xpi_user.py is running (pid in %s/pid)" % RUN)

@@ -1,7 +1,8 @@
 #!/bin/sh
 # PiBoy DMG layer for stock Batocera (tested on 43.1, Raspberry Pi 4B and 3B).
-# Also runs on a PiBoy XRS once its user-space driver is enabled (xpi-user/,
-# see its README): the installer detects it.
+# Also runs on a PiBoy XRS: the installer tells the two apart from the frames
+# the controller chip sends, and on an XRS sets up the user-space driver in
+# xpi-user/ (Batocera's kernel driver only speaks the DMG's protocol).
 #
 # Run ON THE CONSOLE, from a copy of this repository:
 #   1. copy the folder to the console's Samba share, e.g. \\BATOCERA\share\piboy
@@ -17,6 +18,8 @@
 #   --no-netplay  skip the LAN netplay entries and announcement service
 #   --no-wine     skip the StarCraft/Wine launchers (they need box64 + Wine,
 #                 see wine/README.md; skipped automatically if Wine is absent)
+#   --no-intro    keep Batocera's own boot splash and loading logo instead of
+#                 the intro video
 
 set -u
 
@@ -32,13 +35,36 @@ if [ -f "$XU/enabled" ]; then
 	[ -n "$MODEL" ] || MODEL=xrs
 fi
 
-WITH_M8=1; WITH_NET=1; WITH_WINE=1
+# Copies xpi-user/ to /boot and starts the driver right away: once the MCU has
+# had valid frames it expects them to keep coming (it is the Pi's heartbeat).
+# The boot hook installed in step 2 starts it at every boot after this.
+start_user_driver() {
+	mount -o remount,rw /boot 2>/dev/null
+	mkdir -p "$XU"
+	cp "$HERE"/xpi-user/* "$XU"/
+	echo "$MODEL" >"$XU/model"
+	touch "$XU/enabled"
+	sync
+	mount -o remount,ro /boot 2>/dev/null
+	setsid sh -c '
+		while [ -f "$1/enabled" ] && [ ! -e /run/xpi_gamecon/stop ]; do
+			python3 "$1/xpi_user.py" --daemon --model "$2" >>/tmp/xpi-user.log 2>&1
+			rc=$?
+			[ $rc -eq 3 ] || [ $rc -eq 4 ] && break
+			sleep 1
+		done' sh "$XU" "$MODEL" </dev/null >/dev/null 2>&1 &
+	i=0
+	while [ ! -f /run/xpi_gamecon/version ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+}
+
+WITH_M8=1; WITH_NET=1; WITH_WINE=1; WITH_INTRO=1
 for a in "$@"; do
 	case "$a" in
 		--no-m8) WITH_M8=0 ;;
 		--no-netplay) WITH_NET=0 ;;
 		--no-wine) WITH_WINE=0 ;;
-		-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		--no-intro) WITH_INTRO=0 ;;
+		-h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		*) echo "unknown option: $a"; exit 1 ;;
 	esac
 done
@@ -48,10 +74,9 @@ if [ ! -d /userdata ] || [ ! -f /usr/share/batocera/batocera.version ]; then
 	exit 1
 fi
 
-echo "PiBoy DMG layer installer"
+echo "PiBoy layer installer (DMG / XRS)"
 echo "  Batocera : $(cat /usr/share/batocera/batocera.version)"
 echo "  Board    : $(tr -d '\0' </proc/device-tree/model 2>/dev/null)"
-[ "$USERDRV" = 1 ] && echo "  Console  : PiBoy $(echo "$MODEL" | tr a-z A-Z), through the xpi-user driver"
 echo
 
 # Windows editors and zip tools may have turned LF into CRLF: shell scripts
@@ -69,17 +94,35 @@ if [ "$USERDRV" = 1 ]; then
 	if [ ! -f "$XPI/version" ]; then
 		echo "  WARNING: the xpi-user driver is enabled but not running. Reboot once,"
 		echo "  check that the controls work, then run this installer again."
+		echo "  Its log: /tmp/xpi-user.log"
 	fi
 else
 	modprobe xpi_gamecon 2>/dev/null
-	# On a PiBoy XRS the module loads too, but never decodes a frame.
 	sleep 1
-	if [ -d "$XPI" ] && [ "$(cat "$XPI/version" 2>/dev/null)" = 0 ]; then
+	# The module also loads on an XRS, but never decodes a frame there
+	# (version stays 0): ask the chip which frame length it sends.
+	if [ ! -d "$XPI" ] || [ "$(cat "$XPI/version" 2>/dev/null)" = 0 ]; then
 		rmmod xpi_gamecon 2>/dev/null
-		echo "  ERROR: the controller chip does not answer the DMG driver. On a PiBoy XRS,"
-		echo "  set up its driver first: xpi-user/README.md, then run this again."
-		exit 1
+		MODEL=$(python3 "$HERE/xpi-user/xpi_user.py" --probe 2>/dev/null)
+		case "$MODEL" in
+			xrs|dmg)
+				echo "  PiBoy $(echo "$MODEL" | tr a-z A-Z) detected: installing the xpi-user driver"
+				start_user_driver
+				USERDRV=1
+				XPI=/run/xpi_gamecon
+				;;
+			*)
+				echo "  ERROR: the controller chip answers neither as a DMG nor as an XRS."
+				echo "  Is this a PiBoy? Check: dmesg | grep -i gamecon; tail /tmp/xpi-user.log"
+				exit 1
+				;;
+		esac
 	fi
+fi
+if [ "$USERDRV" = 1 ]; then
+	echo "  console  : PiBoy $(echo "$MODEL" | tr a-z A-Z), user-space driver (xpi-user)"
+else
+	echo "  console  : PiBoy DMG, Batocera's xpi_gamecon kernel driver"
 fi
 if [ -d "$XPI" ]; then
 	# The MCU reports its firmware as 0xMmp (262 = 0x106 = 1.0.6).
@@ -129,6 +172,11 @@ if [ -f /boot/boot-custom.sh ] && ! grep -q 'xpi_gamecon' /boot/boot-custom.sh; 
 	echo "  your previous boot-custom.sh was saved as boot-custom.sh.before-piboy"
 fi
 cp "$HERE/boot/boot-custom.sh" /boot/boot-custom.sh && chmod +x /boot/boot-custom.sh && echo "  installed"
+# Intro: the hook drops Batocera's boot logo (the intro video follows) and puts
+# the "loading..." screen in place of EmulationStation's logo, from here.
+if [ "$WITH_INTRO" = 1 ]; then
+	mkdir -p /boot/branding && cp "$HERE"/intro/branding/* /boot/branding/ && echo "  intro: boot logos"
+fi
 sync
 mount -o remount,ro /boot 2>/dev/null
 
@@ -240,6 +288,19 @@ print('  systems added: %s' % (', '.join(added) if added else 'none (already the
 if fixed:
     print('  launch command fixed in %d existing system(s)' % fixed)
 PY
+
+# Intro video. Batocera plays a random .mp4 from /userdata/splash; one of
+# yours with the same name is kept aside, under a name it does not play.
+if [ "$WITH_INTRO" = 1 ]; then
+	mkdir -p /userdata/splash
+	if [ -f /userdata/splash/splash.mp4 ] && ! cmp -s "$HERE/intro/splash.mp4" /userdata/splash/splash.mp4; then
+		mv /userdata/splash/splash.mp4 /userdata/splash/splash.mp4.before-piboy
+		echo "  your splash.mp4 was kept as /userdata/splash/splash.mp4.before-piboy"
+	fi
+	cp "$HERE/intro/splash.mp4" /userdata/splash/splash.mp4 && echo "  intro video"
+	others=$(find /userdata/splash -maxdepth 1 -iname '*.mp4' ! -name splash.mp4 | wc -l)
+	[ "$others" -gt 0 ] && echo "  note: $others other video(s) in /userdata/splash, Batocera picks one at random"
+fi
 
 # ------------------------------------------------------------ extras ---------
 echo "[6/8] Ports: file manager (stick = mouse)"

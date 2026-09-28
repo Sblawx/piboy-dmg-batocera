@@ -30,6 +30,7 @@ updates.
 | **LAN netplay between two consoles** | Host from ES's own menu (long press A on a game, netplay, host). On the other console, "Netplay - Join" finds the hosted game on the network by itself and loads the same game with the same core. Clear on-screen messages when something prevents joining (game missing, core missing). |
 | **Dirtywave M8** | Plug an M8 (or a Teensy running the headless firmware) over USB and use the PiBoy as its screen and controls, as its own ES system, with low-latency and safe audio presets. |
 | **Windows games (Pi 4)** | Optional: box64 + Wine launchers for StarCraft 1.16.1 in a 640x480 desktop, with the stick as mouse and StarCraft shortcuts on the buttons. See [wine/README.md](wine/README.md). |
+| **Intro video** | A "loading..." screen at boot, then an intro video with sound before EmulationStation. Skip it with `--no-intro`. |
 | **Wi-Fi watchdog** | Detects and repairs the "zombie" Wi-Fi link (associated but nothing goes through) and keeps Wi-Fi power-save off. |
 
 ## Screenshots
@@ -44,7 +45,7 @@ updates.
 
 ## Installation
 
-You need a PiBoy DMG with a Raspberry Pi 4B or 3B/3B+, and a fresh
+You need a PiBoy DMG (or XRS, see below) with a Raspberry Pi 4B or 3B/3B+, and a fresh
 [Batocera 43.1](https://batocera.org/download) image for your Pi (`bcm2711`
 for the Pi 4, `bcm2837` for the Pi 3).
 
@@ -74,6 +75,17 @@ for the Pi 4, `bcm2837` for the Pi 3).
       internal screen stays black from the start.
    3. **Save**, then eject the card cleanly before putting it in the console.
 3. **Boot** the console, connect it to Wi-Fi (Main menu, Network settings).
+   On a **PiBoy XRS** the buttons do nothing until the installer has run, so
+   set up Wi-Fi from the PC instead, before the first boot: add these lines at
+   the end of `batocera-boot.conf` on the same partition (Batocera only reads
+   them on the very first boot of a freshly flashed card; otherwise use a USB
+   keyboard):
+
+   ```
+   wifi.enabled=1
+   wifi.ssid=YourNetworkName
+   wifi.key=YourPassword
+   ```
 4. **Copy** this repository to the console's network share, for example
    `\\BATOCERA\share\piboy` from Windows (`smb://batocera/share` on macOS),
    which is `/userdata/piboy` on the console.
@@ -85,7 +97,8 @@ for the Pi 4, `bcm2837` for the Pi 3).
    ```
 
 The installer is idempotent: run it again after updating the repository, your
-settings are kept. Options: `--no-m8`, `--no-netplay`, `--no-wine`. If step
+settings are kept. Options: `--no-m8`, `--no-netplay`, `--no-wine`,
+`--no-intro`. If step
 2.1 was missed, it also disables `dtoverlay=vc4-kms-v3d` itself: the screen
 comes back after the reboot.
 
@@ -134,10 +147,12 @@ Logs: `/userdata/system/piboy-dmgcontrol.log`, `piboy-osd/osd.log`,
 - **Tested** on Batocera 43.1 with a Pi 4B 8 GB and a Pi 3B. Some code comments
   are still in French; user-facing text is in English.
 - **PiBoy XRS**: Batocera's kernel driver only speaks the DMG's protocol, so an
-  XRS gets no controls. Set up the user-space driver in
-  [xpi-user/](xpi-user/README.md) first (tested on one XRS so far), then install
-  this layer as above: the installer detects the XRS. The battery gauge is
-  calibrated on the DMG's pack, so on an XRS it is an estimate. Testers welcome.
+  XRS gets no controls. The installer detects which console it runs on: on an
+  XRS it sets up the user-space driver from [xpi-user/](xpi-user/README.md)
+  (controls, volume wheel, fan, power switch) and the XRS controller mapping,
+  then installs everything else as on a DMG. Tested on one XRS so far. The
+  battery gauge is calibrated on the DMG's pack, so on an XRS it is an
+  estimate. Testers welcome.
 
 ## Building the OSD
 
