@@ -1,5 +1,7 @@
 #!/bin/sh
 # PiBoy DMG layer for stock Batocera (tested on 43.1, Raspberry Pi 4B and 3B).
+# Also runs on a PiBoy XRS once its user-space driver is enabled (xpi-user/,
+# see its README): the installer detects it.
 #
 # Run ON THE CONSOLE, from a copy of this repository:
 #   1. copy the folder to the console's Samba share, e.g. \\BATOCERA\share\piboy
@@ -22,6 +24,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 SYS=/userdata/system
 ESCFG=$SYS/configs/emulationstation
 XPI=/sys/kernel/xpi_gamecon
+XU=/boot/xpi-user                   # PiBoy XRS: user-space driver
+USERDRV=0; MODEL=dmg
+if [ -f "$XU/enabled" ]; then
+	USERDRV=1
+	MODEL=$(cat "$XU/model" 2>/dev/null)
+	[ -n "$MODEL" ] || MODEL=xrs
+fi
 
 WITH_M8=1; WITH_NET=1; WITH_WINE=1
 for a in "$@"; do
@@ -42,6 +51,7 @@ fi
 echo "PiBoy DMG layer installer"
 echo "  Batocera : $(cat /usr/share/batocera/batocera.version)"
 echo "  Board    : $(tr -d '\0' </proc/device-tree/model 2>/dev/null)"
+[ "$USERDRV" = 1 ] && echo "  Console  : PiBoy $(echo "$MODEL" | tr a-z A-Z), through the xpi-user driver"
 echo
 
 # Windows editors and zip tools may have turned LF into CRLF: shell scripts
@@ -52,13 +62,31 @@ for f in "$HERE"/system/services/*; do sed -i 's/\r$//' "$f"; done
 
 # ------------------------------------------------------------------ checks --
 echo "[1/8] checks"
-modprobe xpi_gamecon 2>/dev/null
+if [ "$USERDRV" = 1 ]; then
+	# Batocera's xpi_gamecon speaks the DMG's protocol only, and would fight
+	# the user-space driver over GPIO 26/27: never load it here.
+	XPI=/run/xpi_gamecon
+	if [ ! -f "$XPI/version" ]; then
+		echo "  WARNING: the xpi-user driver is enabled but not running. Reboot once,"
+		echo "  check that the controls work, then run this installer again."
+	fi
+else
+	modprobe xpi_gamecon 2>/dev/null
+	# On a PiBoy XRS the module loads too, but never decodes a frame.
+	sleep 1
+	if [ -d "$XPI" ] && [ "$(cat "$XPI/version" 2>/dev/null)" = 0 ]; then
+		rmmod xpi_gamecon 2>/dev/null
+		echo "  ERROR: the controller chip does not answer the DMG driver. On a PiBoy XRS,"
+		echo "  set up its driver first: xpi-user/README.md, then run this again."
+		exit 1
+	fi
+fi
 if [ -d "$XPI" ]; then
 	# The MCU reports its firmware as 0xMmp (262 = 0x106 = 1.0.6).
 	FW=$(cat "$XPI/version" 2>/dev/null)
 	FWTXT=$(printf '%x' "${FW:-0}" 2>/dev/null | sed 's/^\(.\)\(.\)\(.\)$/\1.\2.\3/')
-	echo "  xpi_gamecon driver loaded, PiBoy MCU firmware $FWTXT"
-	if [ -n "$FW" ] && [ "$FW" -lt 262 ] 2>/dev/null; then
+	echo "  controller driver running ($XPI), PiBoy MCU firmware $FWTXT"
+	if [ "$MODEL" = dmg ] && [ -n "$FW" ] && [ "$FW" -lt 262 ] 2>/dev/null; then
 		echo "  WARNING: firmware older than 1.0.6, the last release for the DMG."
 		echo "  1.0.6 fixes reboot/shutdown issues and the joystick calibration."
 		echo "  The firmware and Experimental Pi's updater are in the firmware/ folder"
@@ -161,15 +189,19 @@ cp "$SCR/screensaver-stop/10-screen-on.sh" "$ESCFG/scripts/screensaver-stop/"
 chmod +x "$ESCFG"/scripts/*/*.sh
 
 # PiBoy pad mapping, so ES does not ask to configure it on first boot.
-HERE="$HERE" ESCFG="$ESCFG" python3 - <<'PY'
+PADXML=piboy-input.xml
+[ "$MODEL" = xrs ] && PADXML=piboy-xrs-input.xml
+HERE="$HERE" ESCFG="$ESCFG" PADXML="$PADXML" python3 - <<'PY'
 import os, xml.etree.ElementTree as ET
 dst = os.path.join(os.environ['ESCFG'], 'es_input.cfg')
-new = ET.fromstring(open(os.path.join(os.environ['HERE'], 'es', 'piboy-input.xml'), encoding='utf-8').read())
+new = ET.fromstring(open(os.path.join(os.environ['HERE'], 'es', os.environ['PADXML']), encoding='utf-8').read())
 if os.path.exists(dst):
     tree = ET.parse(dst); root = tree.getroot()
 else:
     root = ET.Element('inputList'); tree = ET.ElementTree(root)
-if any(c.get('deviceGUID') == new.get('deviceGUID') for c in root.findall('inputConfig')):
+# Both PiBoy pads have the same GUID: match the name too.
+if any(c.get('deviceGUID') == new.get('deviceGUID') and c.get('deviceName') == new.get('deviceName')
+       for c in root.findall('inputConfig')):
     print('  pad mapping already present')
 else:
     root.append(new); tree.write(dst, encoding='utf-8', xml_declaration=True)

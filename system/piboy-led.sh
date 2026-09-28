@@ -5,6 +5,7 @@
 # Usage: piboy-led.sh <red 0-255> <green 0-255>
 #        piboy-led.sh get
 XPI=/sys/kernel/xpi_gamecon
+[ -d "$XPI" ] || XPI=/run/xpi_gamecon   # PiBoy XRS: xpi-user driver
 clamp(){ v=$1; [ $v -lt 0 ] && v=0; [ $v -gt 255 ] && v=255; echo $v; }
 if [ "$1" = get ]; then echo "red=$(cat $XPI/red) green=$(cat $XPI/green)"; exit 0; fi
 if [ -z "$2" ]; then echo "usage: $0 <red 0-255> <green 0-255> | get"; exit 1; fi

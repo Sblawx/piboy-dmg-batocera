@@ -16,9 +16,10 @@ import signal
 import sys
 import time
 
-from evdev import InputDevice, categorize, ecodes  # noqa: F401  (categorize kept for debugging)
+from evdev import InputDevice, categorize, ecodes, list_devices  # noqa: F401  (categorize kept for debugging)
 
-PAD = "/dev/input/event0"          # "PiBoy DMG Controller"
+PAD_NAMES = ("PiBoy DMG Controller", "Experimental Pi Controller")   # DMG, XRS
+PAD = "/dev/input/event0"          # fallback: the DMG pad's usual node
 COMBO = (ecodes.BTN_SELECT, ecodes.BTN_START)   # 314, 315
 POLL = 1.0
 
@@ -39,15 +40,26 @@ def thaw(es_pid):
             pass
 
 
+def find_pad():
+    for path in list_devices():
+        try:
+            if InputDevice(path).name in PAD_NAMES:
+                return path
+        except OSError:
+            pass
+    return PAD
+
+
 def main():
     if len(sys.argv) != 3:
         sys.exit(__doc__)
     m8c_pid, es_pid = int(sys.argv[1]), int(sys.argv[2])
 
+    pad = find_pad()
     try:
-        dev = InputDevice(PAD)
+        dev = InputDevice(pad)
     except Exception as exc:
-        print("cannot open %s: %s" % (PAD, exc))
+        print("cannot open %s: %s" % (pad, exc))
         thaw(es_pid)
         return 1
 

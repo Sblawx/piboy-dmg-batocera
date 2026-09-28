@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launcher for m8c (Dirtywave M8 headless client) on the PiBoy DMG / Batocera 43.
+# Launcher for m8c (Dirtywave M8 headless client) on the PiBoy DMG / XRS, Batocera 43.
 #
 # m8c itself is a plain aarch64 binary linked against Batocera's own
 # libSDL3.so.0 (3.2.18) and libserialport.so.0 — nothing is bundled. It was
@@ -14,6 +14,8 @@
 
 M8C_DIR=/userdata/system/m8c
 LOG=$M8C_DIR/m8c.log
+XPI=/sys/kernel/xpi_gamecon
+[ -d "$XPI" ] || XPI=/run/xpi_gamecon   # PiBoy XRS: xpi-user driver
 
 exec >>"$LOG" 2>&1
 echo "=== $(date '+%F %T') launching m8c ==="
@@ -55,7 +57,17 @@ export SDL_AUDIODRIVER=pipewire
 #   D-pad -> arrows | A -> EDIT | B -> OPTION | SELECT -> SHIFT | START -> PLAY
 #   Z -> quit (m8c gamepad_quit=8/RIGHT_STICK) | L -> reset (gamepad_reset=9)
 #   SELECT+START also quits, via the watcher below.
-export SDL_GAMECONTROLLERCONFIG="15000000010000000100000000010000,PiBoy DMG Controller,platform:Linux,a:b5,b:b6,x:b8,y:b9,back:b13,start:b14,leftshoulder:b11,rightshoulder:b12,rightstick:b10,guide:b7,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,"
+#
+# PiBoy XRS ("Experimental Pi Controller", xpi-user driver): 12 buttons and no
+# C/Z, so SDL numbers them from 0 in evdev code order:
+#   A=b0 B=b1 X=b2 Y=b3 L=b4 R=b5 L2=b6 R2=b7 SELECT=b8 START=b9 L3=b10 R3=b11
+# Same layout, with R3 (right stick click) as quit. Both pads share the same
+# GUID (bus 0x15, ids 1/1/0x100), so only the mapping of the pad present is set.
+if grep -qx 'Experimental Pi Controller' /sys/class/input/event*/device/name 2>/dev/null; then
+  export SDL_GAMECONTROLLERCONFIG="15000000010000000100000000010000,Experimental Pi Controller,platform:Linux,a:b0,b:b1,x:b2,y:b3,back:b8,start:b9,leftshoulder:b4,rightshoulder:b5,lefttrigger:b6,righttrigger:b7,leftstick:b10,rightstick:b11,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,rightx:a2,righty:a3,"
+else
+  export SDL_GAMECONTROLLERCONFIG="15000000010000000100000000010000,PiBoy DMG Controller,platform:Linux,a:b5,b:b6,x:b8,y:b9,back:b13,start:b14,leftshoulder:b11,rightshoulder:b12,rightstick:b10,guide:b7,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,"
+fi
 
 # --- Force the real speaker/jack as the pipewire default sink ---------------
 # The Teensy's own USB audio device ("M8 Analog Stereo") is a full ALSA sink as
@@ -112,7 +124,7 @@ cleanup() {
   thaw_es
   # If the screensaver blanked the panel just before we froze ES, make sure the
   # user does not get a black screen back.
-  echo 1 > /sys/kernel/xpi_gamecon/flags 2>/dev/null
+  echo 1 > "$XPI/flags" 2>/dev/null
 }
 trap cleanup EXIT INT TERM HUP
 
@@ -120,7 +132,7 @@ trap cleanup EXIT INT TERM HUP
 # Both halves matter: flags=1 restores the LCD rail, and sway must re-enable the
 # output it powered off — otherwise SDL sees no display and m8c dies with
 # "The video driver did not add any displays" (hit for real on 43.1).
-echo 1 > /sys/kernel/xpi_gamecon/flags 2>/dev/null
+echo 1 > "$XPI/flags" 2>/dev/null
 SWAYSOCK=/var/run/sway-ipc.0.sock swaymsg 'output * power on' >/dev/null 2>&1
 
 if [ -n "$ES_PID" ]; then

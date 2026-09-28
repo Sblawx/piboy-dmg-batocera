@@ -2,7 +2,9 @@
 """PiBoy DMG control daemon for Batocera.
 
 Sits on top of the xpi_gamecon kernel module, which publishes the PiBoy's
-MCU state under /sys/kernel/xpi_gamecon/. Provides:
+MCU state under /sys/kernel/xpi_gamecon/. On a PiBoy XRS, which that module
+cannot drive, the user-space driver xpi-user/xpi_user.py publishes the same
+files under /run/xpi_gamecon/ instead. Provides:
 
   battery  - mirrors the driver into a standard /sys/class/power_supply/BAT0
              node. The stock Batocera EmulationStation is not built with the
@@ -233,7 +235,9 @@ FAN_PROFILES = {
 }
 
 # ----------------------------------------------------------------- paths ----
-XPI = "/sys/kernel/xpi_gamecon"
+XPI_KERNEL = "/sys/kernel/xpi_gamecon"
+XPI_USER = "/run/xpi_gamecon"            # PiBoy XRS: xpi-user/xpi_user.py
+XPI = XPI_USER if not os.path.isdir(XPI_KERNEL) and os.path.isdir(XPI_USER) else XPI_KERNEL
 PSDIR = "/sys/class/power_supply"
 BAT = os.path.join(PSDIR, "BAT0")
 THERMAL = "/sys/class/thermal/thermal_zone0/temp"
@@ -1093,6 +1097,10 @@ def shutdown(reason):
     subprocess.run(["/etc/init.d/S31emulationstation", "stop"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["sync"])
+    if XPI == XPI_USER:
+        # Tells the user-space driver and the boot hook that this is a real
+        # poweroff: keep flags=0, and do not start a shutdown of its own.
+        write_str(os.path.join(XPI, "poweroff"), "")
     write_str(os.path.join(XPI, "flags"), "0")
     subprocess.run(["poweroff"])
     time.sleep(30)
@@ -1112,6 +1120,10 @@ def main():
     if not os.path.isdir(XPI):
         log("FATAL: %s missing - is xpi_gamecon loaded?" % XPI)
         return 1
+    if XPI == XPI_USER:
+        # The user-space driver runs its own fan, volume and power-switch
+        # handling only while no daemon claims them: this pid is the claim.
+        write_str(os.path.join(XPI, "managed"), "%d" % os.getpid())
 
     fan_profile, fan_idle, fan_curve = load_fan_config()
     fan_conf_mtime = _mtime(FAN_CONF_PATH)
@@ -1135,8 +1147,8 @@ def main():
     _save, warn_levels = load_power_config()
     power_conf_mtime = _mtime(POWER_CONF)
 
-    log("started (fan profile=%s idle=%d curve=%s, battery=%s, led=%s %d/%d)"
-        % (fan_profile, fan_idle, fan_curve, "yes" if have_battery else "no",
+    log("started on %s (fan profile=%s idle=%d curve=%s, battery=%s, led=%s %d/%d)"
+        % (XPI, fan_profile, fan_idle, fan_curve, "yes" if have_battery else "no",
            led_mode, led_red, led_green))
 
     while _running:

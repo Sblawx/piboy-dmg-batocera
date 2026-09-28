@@ -26,7 +26,10 @@ What the daemon does
     amps percent volume (read), flags fan red green (read/write, applied
     within 0.1 s);
   * volume wheel -> batocera-audio, fan from the CPU temperature, power switch
-    and empty battery -> clean shutdown.
+    and empty battery -> clean shutdown. The PiBoy layer's daemon
+    (piboy-dmgcontrol.py) takes these four over when it runs: it writes its
+    pid in /run/xpi_gamecon/managed, and the driver steps back while that
+    process lives.
 
 Raspberry Pi 3 and 4 only: direct access to the BCM283x/BCM2711 GPIO registers,
 like the kernel module (the Pi 5 moved its GPIOs into the RP1 chip).
@@ -49,6 +52,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RUN = "/run/xpi_gamecon"
 BOOT_HOOK = "/boot/boot-custom.sh"
 HOOK_MARK = "xpi-user boot hook"
+LAYER_MARK = "PiBoy layer boot hook"    # the full layer's hook also starts this driver
 THERMAL = "/sys/class/thermal/thermal_zone0/temp"
 
 CLK_PIN, DAT_PIN = 26, 27
@@ -329,6 +333,14 @@ class Driver:
                 if v is not None:
                     self.set_value(name, v, write_file=False)
 
+    def managed(self):
+        """The PiBoy layer's daemon runs the fan, volume and power policies,
+        or a shutdown is already under way: leave them alone."""
+        if os.path.exists(os.path.join(RUN, "poweroff")):
+            return True
+        pid = _read_int(os.path.join(RUN, "managed"))
+        return pid is not None and os.path.exists("/proc/%d" % pid)
+
     def publish(self):
         s = self.state
         if s:
@@ -487,7 +499,9 @@ class Driver:
         gc.disable()
         start = time.monotonic()
         nxt = time.perf_counter_ns()
-        slow = {"ctl": 0.0, "pub": 0.0, "fan": 0.0, "vol": 0.0, "gc": 0.0, "stat": 0.0}
+        slow = {"ctl": 0.0, "pub": 0.0, "fan": 0.0, "vol": 0.0, "gc": 0.0, "stat": 0.0,
+                "own": 0.0}
+        own = True
         last_print = None
         while not self.stop:
             s = self.frame()
@@ -509,17 +523,24 @@ class Driver:
             if now >= slow["pub"]:
                 slow["pub"] = now + 0.5
                 self.publish()
-            if now >= slow["fan"]:
+            if now >= slow["own"]:
+                slow["own"] = now + 1.0
+                own = test or not self.managed()
+            if own and now >= slow["fan"]:
                 slow["fan"] = now + 2.0
                 self.fan_tick()
-            if not test and now >= slow["vol"]:
+            if own and not test and now >= slow["vol"]:
                 slow["vol"] = now + 0.2
                 self.volume_tick()
             if not test and not self.args.no_power:
                 if self.shutdown:
                     self.shutdown_tick(now)
-                else:
+                elif own:
                     self.power_tick(now)
+                else:                           # stay ready to take over
+                    self.switch_off_since = self.low_since = None
+                    if s and s["status"] & 0x40:
+                        self.switch_seen_on = True
             if now >= slow["stat"]:
                 slow["stat"] = now + (2.0 if test else 60.0)
                 self.report(test)
@@ -617,22 +638,26 @@ def enable(model):
         raise SystemExit("copy this folder to /boot/xpi-user first (the boot hook runs it "
                          "from there, before /userdata is mounted)")
     ours = os.path.join(HERE, "boot-custom.sh")
-    if os.path.exists(BOOT_HOOK) and HOOK_MARK not in open(BOOT_HOOK).read():
+    current = open(BOOT_HOOK).read() if os.path.exists(BOOT_HOOK) else ""
+    layer = LAYER_MARK in current
+    if current and not layer and HOOK_MARK not in current:
         raise SystemExit(
             "%s already exists and is not ours. Merge the start/stop sections of\n"
             "%s into it by hand, then: touch %s/enabled" % (BOOT_HOOK, ours, HERE))
     remount_boot("rw")
     try:
-        with open(ours) as f, open(BOOT_HOOK + ".tmp", "w") as g:
-            g.write(f.read())
-        os.chmod(BOOT_HOOK + ".tmp", 0o755)
-        os.replace(BOOT_HOOK + ".tmp", BOOT_HOOK)
+        if not layer:
+            with open(ours) as f, open(BOOT_HOOK + ".tmp", "w") as g:
+                g.write(f.read())
+            os.chmod(BOOT_HOOK + ".tmp", 0o755)
+            os.replace(BOOT_HOOK + ".tmp", BOOT_HOOK)
         _write(os.path.join(HERE, "model"), model + "\n")
         open(os.path.join(HERE, "enabled"), "w").close()
         subprocess.run(["sync"])
     finally:
         remount_boot("ro")
-    print("enabled (model %s): the driver starts at every boot. Reboot now." % model)
+    print("enabled (model %s): the driver starts at every boot%s. Reboot now."
+          % (model, " (through the PiBoy layer's boot hook)" if layer else ""))
 
 
 def disable(quiet=False):

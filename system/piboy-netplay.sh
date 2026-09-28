@@ -20,7 +20,7 @@ set -u
 CONF=/userdata/system/piboy-netplay.conf
 LOG=/userdata/system/piboy-netplay.log
 FIND=/userdata/system/piboy-netplay-find.py
-PAD_NAME="PiBoy DMG Controller"
+PAD_NAME="PiBoy DMG Controller"   # XRS: "Experimental Pi Controller", see below
 PAD_GUID=15000000010000000100000000010000
 WAIT=12
 
@@ -71,18 +71,26 @@ else
 	fi
 fi
 
-# evdev path of the pad, found by name.
+# evdev path of the pad, found by name. Button and axis counts as SDL sees
+# them: the DMG pad has 20 buttons and one stick, the XRS pad (xpi-user
+# driver) 12 buttons and two sticks.
 PAD=""
+NB_BUTTONS=20
+NB_AXES=2
 for d in /sys/class/input/event*; do
 	[ -r "$d/device/name" ] || continue
-	[ "$(cat "$d/device/name")" = "$PAD_NAME" ] || continue
+	case "$(cat "$d/device/name")" in
+		"PiBoy DMG Controller") ;;
+		"Experimental Pi Controller") PAD_NAME="Experimental Pi Controller"; NB_BUTTONS=12; NB_AXES=4 ;;
+		*) continue ;;
+	esac
 	PAD=/dev/input/$(basename "$d")
 	break
 done
 [ -n "$PAD" ] || log "PiBoy pad not found, launching without -p1devicepath"
 
 set -- -p1index 0 -p1guid "$PAD_GUID" -p1name "$PAD_NAME" \
-       -p1nbbuttons 20 -p1nbhats 1 -p1nbaxes 2
+       -p1nbbuttons "$NB_BUTTONS" -p1nbhats 1 -p1nbaxes "$NB_AXES"
 [ -n "$PAD" ] && set -- "$@" -p1devicepath "$PAD"
 set -- "$@" -system "$SYS" -rom "$ROM"
 # Both sides MUST run the same core or RetroArch refuses the connection: when

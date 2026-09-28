@@ -5,7 +5,9 @@ export XDG_RUNTIME_DIR=/var/run
 [ -n "$WAYLAND_DISPLAY" ] || WAYLAND_DISPLAY=$(ls /var/run 2>/dev/null | grep -E '^wayland-[0-9]+$' | head -1)
 export WAYLAND_DISPLAY
 
-echo 1 > /sys/kernel/xpi_gamecon/flags
+XPI=/sys/kernel/xpi_gamecon
+[ -d "$XPI" ] || XPI=/run/xpi_gamecon   # PiBoy XRS: xpi-user driver
+echo 1 > "$XPI/flags"
 sleep 0.5
 
 OUT=$(wlr-randr 2>/dev/null | awk '/^[A-Za-z]/ {print $1; exit}')

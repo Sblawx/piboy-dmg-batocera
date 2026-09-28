@@ -1,5 +1,11 @@
 #!/bin/sh
-# Run by /etc/init.d/S00bootcustom, i.e. before EmulationStation (S31).
+# PiBoy layer boot hook. Run by /etc/init.d/S00bootcustom, i.e. before
+# EmulationStation (S31).
+#
+# PiBoy XRS: Batocera's xpi_gamecon module only speaks the DMG's protocol, so
+# when /boot/xpi-user/enabled exists the user-space driver (xpi-user/, see its
+# README) is started here instead, and it mirrors the MCU files in
+# /run/xpi_gamecon. Everything below then works the same on both consoles.
 #
 # EmulationStation resolves the battery sysfs path exactly once, on its first
 # query, and caches the miss forever: Platform.cpp writes "." into
@@ -24,6 +30,8 @@
 
 XPI=/sys/kernel/xpi_gamecon
 PSDIR=/sys/class/power_supply
+XU=/boot/xpi-user
+XRUN=/run/xpi_gamecon
 
 case "$1" in
 	start)
@@ -40,7 +48,33 @@ case "$1" in
 			cp -f /boot/branding/es-logo.png 				/usr/share/emulationstation/resources/logo.png 2>/dev/null
 		fi
 
-		modprobe xpi_gamecon 2>/dev/null
+		if [ -f "$XU/enabled" ]; then
+			# Never load xpi_gamecon here: both would drive GPIO 26/27. The
+			# driver's polling is the MCU's heartbeat, so it is restarted if
+			# it ever dies; exit codes 3 (no valid frame) and 4 (the kernel
+			# module is loaded) mean it has disabled itself.
+			MODEL=$(cat "$XU/model" 2>/dev/null)
+			[ -n "$MODEL" ] || MODEL=xrs
+			(
+				while [ -f "$XU/enabled" ] && [ ! -e "$XRUN/stop" ]; do
+					python3 "$XU/xpi_user.py" --daemon --model "$MODEL" >>/tmp/xpi-user.log 2>&1
+					rc=$?
+					if [ $rc -eq 3 ] || [ $rc -eq 4 ]; then
+						break
+					fi
+					sleep 1
+				done
+			) </dev/null >/dev/null 2>&1 &
+			XPI=$XRUN
+			# Its first readings, for the battery placeholder below (~1 s).
+			i=0
+			while [ ! -f "$XPI/battery" ] && [ $i -lt 50 ]; do
+				sleep 0.1
+				i=$((i + 1))
+			done
+		else
+			modprobe xpi_gamecon 2>/dev/null
+		fi
 		[ -d "$XPI" ] || exit 0
 
 		# Only shadow PSDIR if the kernel has nothing there of its own.
@@ -103,6 +137,20 @@ case "$1" in
 		[ -n "$MV" ] && echo $((MV * 1000)) >"$PSDIR/BAT0/voltage_now"
 		;;
 	stop)
+		if [ -f "$XU/enabled" ] && [ -d "$XRUN" ]; then
+			# Same rule as below. The driver reads the file every 0.1 s;
+			# piboy-dmgcontrol.py leaves the poweroff marker on the power
+			# switch and empty battery paths.
+			touch "$XRUN/stop"
+			if [ -e /tmp/shutdown.please ] || [ -e "$XRUN/poweroff" ]; then
+				sync
+				echo 0 >"$XRUN/flags"
+			else
+				echo 129 >"$XRUN/flags"
+			fi
+			sleep 1
+			exit 0
+		fi
 		# Positive detection only: cut the rail solely when ES left its
 		# shutdown marker. A reboot leaves /tmp/reboot.please instead (never
 		# shutdown.please), and a bare `reboot`/`poweroff` from a shell leaves

@@ -11,8 +11,8 @@ values in `/run/xpi_gamecon` (same file names as the kernel driver's sysfs).
 > **Status: tested on one PiBoy XRS** (controller firmware 1.0.7): all buttons, both
 > sticks and their clicks, the d-pad, the menu button (volume/brightness mode, long
 > press to shut down) and the automatic start at boot work. The fan speed scale was
-> fixed afterwards and awaits confirmation. Not yet tried on a DMG. Please run step 3
-> first.
+> fixed afterwards and awaits confirmation, like the full layer of step 5. Not yet
+> tried on a DMG. Please run step 3 first.
 
 Raspberry Pi 4 (or 3) only. Tested target: Batocera 43.1 (`bcm2711`).
 
@@ -95,6 +95,20 @@ top -b -n 1 | head -15
 
 (the second one while a game runs, to see how much CPU `python3` uses).
 
+## 5. Optional: the full PiBoy layer
+
+Once step 4 works, the rest of this repository runs on the XRS too: battery gauge in
+EmulationStation, in-game OSD (battery, temperature, Wi-Fi, clock, volume bar),
+System Settings menu, fan and LED profiles, game saved before shutdown, screen-off
+standby. Follow steps 3 to 5 of the [main README](../README.md#installation) (Wi-Fi,
+copy the repository to the console, run `install.sh`): the installer sees the XRS
+driver and sets itself up for it. The driver keeps running; the layer's daemon takes
+over the fan, the volume and the power switch while it runs.
+
+The controller mapping it adds to EmulationStation (`es/piboy-xrs-input.xml`) is
+computed, not yet checked on an XRS: if a button is wrong, reconfigure the controller
+from the ES menu.
+
 ## Undo
 
 ```
@@ -110,8 +124,8 @@ partition.
   as the Pi's heartbeat. It costs about a quarter of one CPU core.
 - Fan: off below 60 °C, then about 30, 45, 70 and 90 % at 60, 67, 73 and 79 °C, full
   from 80 °C.
-- Battery, temperature and fan are not shown in EmulationStation: this is only the
-  driver.
+- On its own, the driver shows nothing in EmulationStation (no battery, temperature
+  or OSD): that is the full layer of step 5.
 - When it stops, it sends `flags=129` (display on + 60 s grace, what the vendor image
   sends on reboot), unless the system is powering off, in which case it sends
   `flags=0` so the chip switches itself off instead of draining the battery.

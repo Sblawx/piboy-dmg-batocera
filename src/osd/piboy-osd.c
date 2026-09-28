@@ -185,6 +185,13 @@ static int str_cp_deg(const char *s, int *cp, int max){
 
 // -------------------------------------------------------------- sensors ---
 static int read_int_file(const char *path){ FILE*f=fopen(path,"r"); if(!f)return -1; int v=-1; if(fscanf(f,"%d",&v)!=1)v=-1; fclose(f); return v; }
+// MCU files: the DMG's xpi_gamecon kernel module, else the XRS user-space
+// driver (xpi-user/xpi_user.py), which mirrors them in /run/xpi_gamecon.
+static const char *xpi(const char *name){
+    static char p[64]; static const char *dir=NULL;
+    if(!dir) dir = access("/sys/kernel/xpi_gamecon",F_OK)==0 ? "/sys/kernel/xpi_gamecon" : "/run/xpi_gamecon";
+    snprintf(p,sizeof p,"%s/%s",dir,name); return p;
+}
 static void read_str_file(const char *path,char*out,int max){ out[0]=0; FILE*f=fopen(path,"r"); if(!f)return; if(fgets(out,max,f)){char*nl=strchr(out,'\n'); if(nl)*nl=0;} fclose(f); }
 
 typedef struct { int volume, battery, temp_c, cpu_pct, charging, wifi_bars, wifi_state, bt; char clock[8]; } State;
@@ -342,9 +349,9 @@ static int read_bt_state(void){
     return conn?BT_CONN:BT_ON;
 }
 static void read_state(State *s){
-    s->volume  = read_int_file("/sys/kernel/xpi_gamecon/volume");
+    s->volume  = read_int_file(xpi("volume"));
     s->battery = read_int_file("/sys/class/power_supply/BAT0/capacity");
-    if(s->battery<0) s->battery = read_int_file("/sys/kernel/xpi_gamecon/percent");
+    if(s->battery<0) s->battery = read_int_file(xpi("percent"));
     char st[32]; read_str_file("/sys/class/power_supply/BAT0/status",st,sizeof st);
     s->charging = (strncmp(st,"Charging",8)==0);
     int t = read_int_file("/sys/class/thermal/thermal_zone0/temp");

@@ -173,6 +173,13 @@ static int rfkill_on(const char*dev){
 }
 static void popen_line(const char*cmd,char*out,int max){ out[0]=0; FILE*f=popen(cmd,"r"); if(!f)return;
     if(fgets(out,max,f)){char*nl=strchr(out,'\n'); if(nl)*nl=0;} pclose(f); }
+// MCU files: the DMG's xpi_gamecon kernel module, else the XRS user-space
+// driver (xpi-user/xpi_user.py), which mirrors them in /run/xpi_gamecon.
+static const char *xpi(const char *name){
+    static char p[64]; static const char *dir=NULL;
+    if(!dir) dir = access("/sys/kernel/xpi_gamecon",F_OK)==0 ? "/sys/kernel/xpi_gamecon" : "/run/xpi_gamecon";
+    snprintf(p,sizeof p,"%s/%s",dir,name); return p;
+}
 static int read_int_f(const char*p){ FILE*f=fopen(p,"r"); if(!f)return -1; int v=-1; if(fscanf(f,"%d",&v)!=1)v=-1; fclose(f); return v; }
 
 static void load_model(void){
@@ -242,8 +249,8 @@ static void draw_info(uint32_t*px){
     rect(px,40,70,W-80,2,80,90,110,255);
     char v[160]; int y=96,rh=34;
     int cap=read_int_f("/sys/class/power_supply/BAT0/capacity");
-    int mv=read_int_f("/sys/kernel/xpi_gamecon/battery");
-    int ma=read_int_f("/sys/kernel/xpi_gamecon/amps");
+    int mv=read_int_f(xpi("battery"));
+    int ma=read_int_f(xpi("amps"));
     char st[32]; popen_line("cat /sys/class/power_supply/BAT0/status 2>/dev/null",st,sizeof st);
     snprintf(v,sizeof v,"%d%%  %dmV  %dmA  %s",cap,mv,ma,st); info_row(px,y,TR("Battery","Batterie"),v); y+=rh;
     int t=read_int_f("/sys/class/thermal/thermal_zone0/temp"); if(t>1000)t/=1000;
@@ -257,7 +264,7 @@ static void draw_info(uint32_t*px){
     char up[32]; popen_line("awk '{h=int($1/3600);m=int($1%3600/60);printf \"%dh%02d\",h,m}' /proc/uptime 2>/dev/null",up,sizeof up);
     info_row(px,y,"Uptime",up); y+=rh;
     // Firmware du microcontroleur : 262 = 0x106 = 1.0.6
-    int fw=read_int_f("/sys/kernel/xpi_gamecon/version");
+    int fw=read_int_f(xpi("version"));
     if(fw>0) snprintf(v,sizeof v,"%x.%x.%x",(fw>>8)&0xF,(fw>>4)&0xF,fw&0xF); else snprintf(v,sizeof v,"-");
     info_row(px,y,TR("MCU firmware","Firmware MCU"),v); y+=rh;
     text(px,TR("B: back","B: retour"),40,H-40,16,160,170,185);
@@ -325,7 +332,8 @@ static int open_pad(void){
         if(strncmp(e->d_name,"event",5)) continue;
         char path[80]; snprintf(path,sizeof path,"/dev/input/%s",e->d_name);
         int f=open(path,O_RDONLY|O_NONBLOCK); if(f<0) continue;
-        char name[128]={0}; if(ioctl(f,EVIOCGNAME(sizeof name),name)>=0 && strstr(name,"PiBoy")){ strcpy(best,path); close(f); break; }
+        char name[128]={0}; if(ioctl(f,EVIOCGNAME(sizeof name),name)>=0 &&
+           (strstr(name,"PiBoy") || !strcmp(name,"Experimental Pi Controller"))){ strcpy(best,path); close(f); break; }
         close(f);
     }
     closedir(d);

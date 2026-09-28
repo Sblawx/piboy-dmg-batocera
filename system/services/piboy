@@ -24,7 +24,8 @@ PIDFILE=/var/run/piboy-dmgcontrol.pid
 
 case "$1" in
 	start)
-		modprobe xpi_gamecon 2>/dev/null
+		# Not on a PiBoy XRS: its user-space driver owns the MCU pins.
+		[ -f /boot/xpi-user/enabled ] || modprobe xpi_gamecon 2>/dev/null
 		if [ ! -f "$PIDFILE" ] || ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
 			# Keep the previous run's log: it holds the shutdown
 			# reason, which is exactly what post-mortems need (the

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Joystick -> mouse for the PiBoy DMG.
+"""Joystick -> mouse for the PiBoy DMG (and XRS: left stick).
 
 The Batocera file manager (pcmanfm) shows a cursor but there is no pointing
 device on the PiBoy, so the cursor never moves and the desktop is unusable.
@@ -24,7 +24,8 @@ import time
 import evdev
 from evdev import ecodes, UInput, InputDevice
 
-CONTROLLER_NAME = "PiBoy DMG Controller"
+# DMG (xpi_gamecon kernel module), XRS (xpi-user driver)
+CONTROLLER_NAMES = ("PiBoy DMG Controller", "Experimental Pi Controller")
 
 # Only act while one of these processes is running. pcmanfm = the file manager;
 # StarCraft.exe = StarCraft under box64/Wine (its /proc comm, <=15 chars). Set to
@@ -116,7 +117,7 @@ def find_controller():
             d = InputDevice(path)
         except OSError:
             continue
-        if CONTROLLER_NAME in d.name:
+        if any(n in d.name for n in CONTROLLER_NAMES):
             return d
     return None
 

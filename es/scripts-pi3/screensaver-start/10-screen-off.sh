@@ -16,4 +16,6 @@ export WAYLAND_DISPLAY
 OUT=$(wlr-randr 2>/dev/null | awk '/^[A-Za-z]/ {print $1; exit}')
 [ -n "$OUT" ] && wlr-randr --output "$OUT" --off 2>/dev/null && sleep 0.3
 
-echo 0 > /sys/kernel/xpi_gamecon/flags
+XPI=/sys/kernel/xpi_gamecon
+[ -d "$XPI" ] || XPI=/run/xpi_gamecon   # PiBoy XRS: xpi-user driver
+echo 0 > "$XPI/flags"
