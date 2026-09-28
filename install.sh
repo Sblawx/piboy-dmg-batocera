@@ -91,6 +91,27 @@ if [ "$USERDRV" = 1 ]; then
 	# Batocera's xpi_gamecon speaks the DMG's protocol only, and would fight
 	# the user-space driver over GPIO 26/27: never load it here.
 	XPI=/run/xpi_gamecon
+	# Set up by hand from xpi-user/README.md, maybe with an older version:
+	# refresh it, then restart it (its boot loop starts the new file within a
+	# second; the MCU grants 60 s when the old one stops).
+	if ! cmp -s "$HERE/xpi-user/xpi_user.py" "$XU/xpi_user.py"; then
+		mount -o remount,rw /boot 2>/dev/null
+		cp "$HERE"/xpi-user/* "$XU"/
+		sync
+		mount -o remount,ro /boot 2>/dev/null
+		echo "  xpi-user driver updated"
+		old=$(cat "$XPI/pid" 2>/dev/null)
+		if [ -n "$old" ] && [ -d "/proc/$old" ]; then
+			kill "$old"
+			i=0
+			while [ $i -lt 50 ]; do
+				new=$(cat "$XPI/pid" 2>/dev/null)
+				[ -n "$new" ] && [ "$new" != "$old" ] && [ -d "/proc/$new" ] && break
+				sleep 0.1; i=$((i + 1))
+			done
+			sleep 1
+		fi
+	fi
 	if [ ! -f "$XPI/version" ]; then
 		echo "  WARNING: the xpi-user driver is enabled but not running. Reboot once,"
 		echo "  check that the controls work, then run this installer again."
