@@ -31,8 +31,9 @@ What the daemon does
 Raspberry Pi 3 and 4 only: direct access to the BCM283x/BCM2711 GPIO registers,
 like the kernel module (the Pi 5 moved its GPIOs into the RP1 chip).
 
-Status: written 2026-09-25 from the vendor driver sources, NOT yet run on a
-real console. Run --test first.
+Status: written 2026-09-25 from the vendor driver sources; run on one PiBoy XRS
+(MCU firmware 1.0.7) on 2026-09-28: controls, menu button, shutdown OK. Not
+yet run on a DMG. Run --test first.
 """
 import argparse
 import gc
@@ -60,6 +61,9 @@ CLK_SHIFT = (CLK_PIN % 10) * 3
 SWITCH_DEBOUNCE_S = 1.5             # power switch must read "off" this long
 LOW_MV, LOW_S = 3250, 60            # discharging below this for this long -> off
 FAN_CURVE = [(60, 80), (67, 120), (73, 175), (79, 235)]   # "quiet" profile, 0-255
+# /run/xpi_gamecon/fan is always 0-255, like the DMG kernel driver's sysfs node.
+# It is scaled on the wire: the XRS MCU takes 0-100 (Hancock33's
+# fan.piboyxrs.ini), so sending 80 there meant 80 %, and 120+ meant full speed.
 FAN_CRITICAL_C, FAN_HYST_C = 80, 2.0
 
 EXIT_NO_FRAMES, EXIT_CONFLICT = 3, 4    # the boot hook stops retrying on these
@@ -152,9 +156,11 @@ def decode_dmg(b):
 
 MODELS = {
     "xrs": {"length": 14, "decode": decode_xrs, "name": "Experimental Pi Controller",
+            "fan_max": 100,
             "axes": {"ABS_X": (0, 255), "ABS_Y": (0, 255), "ABS_RX": (0, 255),
                      "ABS_RY": (0, 255), "ABS_HAT0X": (-1, 1), "ABS_HAT0Y": (-1, 1)}},
     "dmg": {"length": 12, "decode": decode_dmg, "name": "PiBoy DMG Controller",
+            "fan_max": 255,
             "axes": {"ABS_X": (0, 255), "ABS_Y": (0, 255)}},
 }
 
@@ -333,7 +339,10 @@ class Driver:
     def next_reply(self):
         name = self.dirty[0] if self.dirty else SLOTS[self.index & 3]
         idx = SLOTS.index(name)
-        pay = bytes([0xC0 | idx, self.values[name] & 0xFF])
+        v = self.values[name]
+        if name == "fan":
+            v = (v * self.model["fan_max"] + 127) // 255
+        pay = bytes([0xC0 | idx, v & 0xFF])
         c = crc16(pay)
         return name, pay + bytes([c >> 8, c & 0xFF])
 

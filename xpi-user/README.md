@@ -8,8 +8,11 @@ It provides the gamepad ("Experimental Pi Controller": two sticks, d-pad, 12 but
 the volume wheel, fan control, the power switch (clean shutdown), and the battery
 values in `/run/xpi_gamecon` (same file names as the kernel driver's sysfs).
 
-> **Status: untested on real hardware.** Written on 2026-09-25 from the vendor driver
-> sources and checked against a simulated controller chip. Please run step 3 first.
+> **Status: tested on one PiBoy XRS** (controller firmware 1.0.7): all buttons, both
+> sticks and their clicks, the d-pad, the menu button (volume/brightness mode, long
+> press to shut down) and the automatic start at boot work. The fan speed scale was
+> fixed afterwards and awaits confirmation. Not yet tried on a DMG. Please run step 3
+> first.
 
 Raspberry Pi 4 (or 3) only. Tested target: Batocera 43.1 (`bcm2711`).
 
@@ -104,7 +107,11 @@ partition.
 ## How it behaves
 
 - Polls the chip 100 times a second (`--hz` to change it). The chip also treats this
-  as the Pi's heartbeat.
+  as the Pi's heartbeat. It costs about a quarter of one CPU core.
+- Fan: off below 60 °C, then about 30, 45, 70 and 90 % at 60, 67, 73 and 79 °C, full
+  from 80 °C.
+- Battery, temperature and fan are not shown in EmulationStation: this is only the
+  driver.
 - When it stops, it sends `flags=129` (display on + 60 s grace, what the vendor image
   sends on reboot), unless the system is powering off, in which case it sends
   `flags=0` so the chip switches itself off instead of draining the battery.

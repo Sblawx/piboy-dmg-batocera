@@ -135,7 +135,7 @@ Logs: `/userdata/system/piboy-dmgcontrol.log`, `piboy-osd/osd.log`,
   are still in French; user-facing text is in English.
 - **PiBoy XRS**: this layer is for the DMG. Batocera's kernel driver only speaks
   the DMG's protocol, so an XRS gets no controls. An experimental user-space
-  driver for the XRS, not yet tested on real hardware, is in
+  driver for the XRS, tested on one console so far, is in
   [xpi-user/](xpi-user/README.md): testers welcome.
 
 ## Building the OSD
