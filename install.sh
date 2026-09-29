@@ -269,8 +269,25 @@ if os.path.exists(dst):
 else:
     root = ET.Element('inputList'); tree = ET.ElementTree(root)
 # Both PiBoy pads have the same GUID: match the name too.
-if any(c.get('deviceGUID') == new.get('deviceGUID') and c.get('deviceName') == new.get('deviceName')
-       for c in root.findall('inputConfig')):
+mine = [c for c in root.findall('inputConfig')
+        if c.get('deviceGUID') == new.get('deviceGUID') and c.get('deviceName') == new.get('deviceName')]
+# xpi_user.py before 2026-09-30 reported the XRS's Select as START and Start
+# as SELECT: a mapping made with it has select on code 315. Swap it back.
+fixed = 0
+for c in mine:
+    if c.get('deviceName') != 'Experimental Pi Controller':
+        continue
+    sel = [i for i in c.findall('input') if i.get('name') == 'select']
+    if sel and sel[0].get('code') == '315':
+        for i in c.findall('input'):
+            if i.get('code') in ('314', '315'):
+                i.set('code', '315' if i.get('code') == '314' else '314')
+                i.set('id', '9' if i.get('code') == '315' else '8')
+        fixed = 1
+if fixed:
+    tree.write(dst, encoding='utf-8', xml_declaration=True)
+    print('  pad mapping: Select and Start swapped back (older xpi-user driver)')
+elif mine:
     print('  pad mapping already present')
 else:
     root.append(new); tree.write(dst, encoding='utf-8', xml_declaration=True)

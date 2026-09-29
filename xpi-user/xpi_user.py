@@ -117,7 +117,10 @@ def _sb(v):
 
 def decode_xrs(b):
     """14 bytes: version, LX, LY, RX, RY, pad, buttons, status, volume,
-    battery, current, percent, CRC lo, CRC hi (from the vendor XRS driver)."""
+    battery, current, percent, CRC lo, CRC hi (from the vendor XRS driver).
+    Status bits seen on a real XRS: 0x80 charger present, 0x40 power switch
+    on, 0x10 menu button mode (the d-pad sets volume/brightness, and the MCU
+    keeps it to itself)."""
     p, q = b[5], b[6]
     keys = {
         "BTN_A": not p & 0x10, "BTN_B": not p & 0x20,
@@ -125,7 +128,9 @@ def decode_xrs(b):
         "BTN_TL": not q & 0x01, "BTN_TR": not q & 0x02,
         "BTN_TL2": not q & 0x04, "BTN_TR2": not q & 0x08,
         "BTN_THUMBL": not q & 0x10, "BTN_THUMBR": not q & 0x20,
-        "BTN_SELECT": not q & 0x40, "BTN_START": not q & 0x80,
+        # The vendor source names 0x40 Select and 0x80 Start: on a real XRS
+        # the button printed SELECT is 0x80.
+        "BTN_SELECT": not q & 0x80, "BTN_START": not q & 0x40,
     }
     axes = {
         "ABS_X": b[1], "ABS_Y": b[2], "ABS_RX": b[3], "ABS_RY": b[4],
@@ -309,6 +314,7 @@ class Driver:
     # -- control/state files --------------------------------------------------
     def setup_run(self):
         os.makedirs(RUN, exist_ok=True)
+        _write(os.path.join(RUN, "model"), self.args.model)
         for name in SLOTS:
             self.set_value(name, self.values[name])
 

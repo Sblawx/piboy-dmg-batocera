@@ -194,7 +194,7 @@ static const char *xpi(const char *name){
 }
 static void read_str_file(const char *path,char*out,int max){ out[0]=0; FILE*f=fopen(path,"r"); if(!f)return; if(fgets(out,max,f)){char*nl=strchr(out,'\n'); if(nl)*nl=0;} fclose(f); }
 
-typedef struct { int volume, battery, temp_c, cpu_pct, charging, wifi_bars, wifi_state, bt; char clock[8]; } State;
+typedef struct { int volume, battery, temp_c, cpu_pct, charging, wifi_bars, wifi_state, bt, menu; char clock[8]; } State;
 static long long cpu_prev_idle=0, cpu_prev_tot=0;
 static int read_cpu_pct(void){
     FILE*f=fopen("/proc/stat","r"); if(!f)return -1;
@@ -350,6 +350,12 @@ static int read_bt_state(void){
 }
 static void read_state(State *s){
     s->volume  = read_int_file(xpi("volume"));
+    // PiBoy XRS: status bit 0x10 = menu button mode (the MCU turns the d-pad
+    // into volume/brightness keys). The user-space driver names the model.
+    static int xrs=-1;
+    if(xrs<0){ char m[8]; read_str_file(xpi("model"),m,sizeof m); if(m[0]) xrs=!strcmp(m,"xrs"); }
+    int status = xrs>0 ? read_int_file(xpi("status")) : -1;
+    s->menu = status>=0 && (status&0x10);
     s->battery = read_int_file("/sys/class/power_supply/BAT0/capacity");
     if(s->battery<0) s->battery = read_int_file(xpi("percent"));
     char st[32]; read_str_file("/sys/class/power_supply/BAT0/status",st,sizeof st);
@@ -490,13 +496,16 @@ static void render(State *s){
         }
     }
     // ---- CENTRE : volume (transitoire) sinon horloge ----
-    int vol_active = visible(m_volume,ig) && now_s()<volume_until && s->volume>=0;
+    // In the XRS menu mode the bar stays up, labelled "menu" in yellow: the
+    // brightness level is not reported by the MCU, so it has no bar.
+    int vol_active = visible(m_volume,ig) && (s->menu || now_s()<volume_until) && s->volume>=0;
     if(vol_active){
-        int barW=140,barH=10,labelW=g_charw*3,tw=g_charw*3;
+        int nl=s->menu?4:3, barW=140,barH=10,labelW=g_charw*nl,tw=g_charw*3;
         char txt[8]; snprintf(txt,sizeof txt,"%d",s->volume); n=str_cp(txt,cp,8);
         int cw=labelW+6+barW+6+tw, x=(W-cw)/2;
         pill(b->px,W,H,x-8,pillY,cw+16,30,160);
-        int vlbl[3]={'v','o','l'}; draw_text(b->px,W,H,vlbl,3,x,textY,255,255,255);
+        if(s->menu){ int mlbl[4]={'m','e','n','u'}; draw_text(b->px,W,H,mlbl,4,x,textY,255,210,60); }
+        else       { int vlbl[3]={'v','o','l'};     draw_text(b->px,W,H,vlbl,3,x,textY,255,255,255); }
         int bx=x+labelW+6,by=(H-barH)/2;
         fill_rect(b->px,W,H,bx,by,barW,barH,255,255,255,60);
         fill_rect(b->px,W,H,bx,by,barW*s->volume/100,barH,255,255,255,230);
