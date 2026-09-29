@@ -26,7 +26,7 @@ What the daemon does
     driver;
   * mirrors the kernel sysfs files in /run/xpi_gamecon: version status battery
     amps percent volume (read), flags fan red green (read/write, applied
-    within 0.1 s);
+    within 0.1 s), plus raw (the last valid frame in hex, for diagnosis);
   * volume wheel -> batocera-audio, fan from the CPU temperature, power switch
     and empty battery -> clean shutdown. The PiBoy layer's daemon
     (piboy-dmgcontrol.py) takes these four over when it runs: it writes its
@@ -293,6 +293,7 @@ class Driver:
         self.index = 0
         self.own_mtime = {}
         self.state = None
+        self.raw = None
         self.ok = self.err = 0
         self.t_frame = []
         self.stop = False
@@ -348,6 +349,7 @@ class Driver:
         if s:
             for name in READ_FILES:
                 _write(os.path.join(RUN, name), "%d" % s[name])
+            _write(os.path.join(RUN, "raw"), self.raw.hex(" "))
 
     # -- one frame ----------------------------------------------------------------
     def next_reply(self):
@@ -376,6 +378,7 @@ class Driver:
         if self.args.model == "dmg" and buf[0] in (0xA5, 0x5A):
             raise SystemExit("DMG firmware 1.00/1.01 speaks an older reply format: "
                              "update the MCU to 1.06 first")
+        self.raw = buf
         self.state = self.model["decode"](buf)
         return self.state
 
@@ -501,8 +504,11 @@ class Driver:
         gc.disable()
         start = time.monotonic()
         nxt = time.perf_counter_ns()
-        slow = {"ctl": 0.0, "pub": 0.0, "fan": 0.0, "vol": 0.0, "gc": 0.0, "stat": 0.0,
-                "own": 0.0}
+        # The fan policy waits 1 s, so the MCU first gets the non-zero start
+        # value: a fan sent 0 from the very first frame stayed at full speed on
+        # an XRS until another value came (the vendor drivers start at 10 too).
+        slow = {"ctl": 0.0, "pub": 0.0, "fan": start + 1.0, "vol": 0.0, "gc": 0.0,
+                "stat": 0.0, "own": 0.0}
         own = True
         last_print = None
         while not self.stop:
